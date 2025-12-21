@@ -1,5 +1,6 @@
 #include "usb_hid.h"
 #include "config.h"
+#include "keyboard_layout.h"
 
 #include <string.h>
 #include "freertos/FreeRTOS.h"
@@ -37,67 +38,6 @@ static const uint8_t hid_configuration_descriptor[] = {
 
 // USB device ready flag
 static bool s_usb_ready = false;
-
-// ASCII to HID keycode mapping (US layout)
-// Returns keycode in lower byte, shift modifier in upper byte
-static uint16_t ascii_to_keycode(char c)
-{
-    // Letters a-z
-    if (c >= 'a' && c <= 'z') {
-        return HID_KEY_A + (c - 'a');
-    }
-    // Letters A-Z (with shift)
-    if (c >= 'A' && c <= 'Z') {
-        return (HID_KEY_A + (c - 'A')) | (KEYBOARD_MODIFIER_LEFTSHIFT << 8);
-    }
-    // Numbers 1-9
-    if (c >= '1' && c <= '9') {
-        return HID_KEY_1 + (c - '1');
-    }
-    // Number 0
-    if (c == '0') {
-        return HID_KEY_0;
-    }
-    // Special characters
-    switch (c) {
-        case ' ':  return HID_KEY_SPACE;
-        case '\n': return HID_KEY_ENTER;
-        case '\t': return HID_KEY_TAB;
-        case '.':  return HID_KEY_PERIOD;
-        case ',':  return HID_KEY_COMMA;
-        case '!':  return HID_KEY_1 | (KEYBOARD_MODIFIER_LEFTSHIFT << 8);
-        case '@':  return HID_KEY_2 | (KEYBOARD_MODIFIER_LEFTSHIFT << 8);
-        case '#':  return HID_KEY_3 | (KEYBOARD_MODIFIER_LEFTSHIFT << 8);
-        case '$':  return HID_KEY_4 | (KEYBOARD_MODIFIER_LEFTSHIFT << 8);
-        case '%':  return HID_KEY_5 | (KEYBOARD_MODIFIER_LEFTSHIFT << 8);
-        case '^':  return HID_KEY_6 | (KEYBOARD_MODIFIER_LEFTSHIFT << 8);
-        case '&':  return HID_KEY_7 | (KEYBOARD_MODIFIER_LEFTSHIFT << 8);
-        case '*':  return HID_KEY_8 | (KEYBOARD_MODIFIER_LEFTSHIFT << 8);
-        case '(':  return HID_KEY_9 | (KEYBOARD_MODIFIER_LEFTSHIFT << 8);
-        case ')':  return HID_KEY_0 | (KEYBOARD_MODIFIER_LEFTSHIFT << 8);
-        case '-':  return HID_KEY_MINUS;
-        case '_':  return HID_KEY_MINUS | (KEYBOARD_MODIFIER_LEFTSHIFT << 8);
-        case '=':  return HID_KEY_EQUAL;
-        case '+':  return HID_KEY_EQUAL | (KEYBOARD_MODIFIER_LEFTSHIFT << 8);
-        case '[':  return HID_KEY_BRACKET_LEFT;
-        case ']':  return HID_KEY_BRACKET_RIGHT;
-        case '{':  return HID_KEY_BRACKET_LEFT | (KEYBOARD_MODIFIER_LEFTSHIFT << 8);
-        case '}':  return HID_KEY_BRACKET_RIGHT | (KEYBOARD_MODIFIER_LEFTSHIFT << 8);
-        case '\\': return HID_KEY_BACKSLASH;
-        case '|':  return HID_KEY_BACKSLASH | (KEYBOARD_MODIFIER_LEFTSHIFT << 8);
-        case ';':  return HID_KEY_SEMICOLON;
-        case ':':  return HID_KEY_SEMICOLON | (KEYBOARD_MODIFIER_LEFTSHIFT << 8);
-        case '\'': return HID_KEY_APOSTROPHE;
-        case '"':  return HID_KEY_APOSTROPHE | (KEYBOARD_MODIFIER_LEFTSHIFT << 8);
-        case '/':  return HID_KEY_SLASH;
-        case '?':  return HID_KEY_SLASH | (KEYBOARD_MODIFIER_LEFTSHIFT << 8);
-        case '<':  return HID_KEY_COMMA | (KEYBOARD_MODIFIER_LEFTSHIFT << 8);
-        case '>':  return HID_KEY_PERIOD | (KEYBOARD_MODIFIER_LEFTSHIFT << 8);
-        case '`':  return HID_KEY_GRAVE;
-        case '~':  return HID_KEY_GRAVE | (KEYBOARD_MODIFIER_LEFTSHIFT << 8);
-        default:   return 0;
-    }
-}
 
 // Report ID for keyboard (must match HID_REPORT_ID in descriptor)
 #define KEYBOARD_REPORT_ID 1
@@ -188,6 +128,21 @@ esp_err_t usb_hid_init(void)
     return ESP_OK;
 }
 
+// Context for typing callback
+typedef struct {
+    esp_err_t result;
+} type_context_t;
+
+// Callback for keyboard_layout_string_to_keycodes
+static void type_key_callback(uint8_t keycode, uint8_t modifiers, void *ctx)
+{
+    type_context_t *type_ctx = (type_context_t *)ctx;
+    if (type_ctx->result != ESP_OK) {
+        return;  // Stop on first error
+    }
+    type_ctx->result = send_key(keycode, modifiers);
+}
+
 esp_err_t usb_hid_type_text(const char *text)
 {
     if (!s_usb_ready) {
@@ -201,24 +156,11 @@ esp_err_t usb_hid_type_text(const char *text)
 
     ESP_LOGI(TAG, "Typing: %s", text);
 
-    for (size_t i = 0; i < strlen(text); i++) {
-        uint16_t keydata = ascii_to_keycode(text[i]);
-        if (keydata == 0) {
-            ESP_LOGW(TAG, "Unsupported character: 0x%02x", text[i]);
-            continue;
-        }
+    type_context_t ctx = { .result = ESP_OK };
+    int count = keyboard_layout_string_to_keycodes(text, type_key_callback, &ctx);
 
-        uint8_t keycode = keydata & 0xFF;
-        uint8_t modifier = (keydata >> 8) & 0xFF;
-
-        esp_err_t ret = send_key(keycode, modifier);
-        if (ret != ESP_OK) {
-            ESP_LOGE(TAG, "Failed to send key");
-            return ret;
-        }
-    }
-
-    return ESP_OK;
+    ESP_LOGI(TAG, "Typed %d characters", count);
+    return ctx.result;
 }
 
 esp_err_t usb_hid_type_hello_world(void)

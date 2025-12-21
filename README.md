@@ -52,12 +52,13 @@ idf.py flash
 
 ## Current Status
 
-- **v2.7.0** - ESP32: WiFi + USB HID + BLE working
+- **v2.8.0** - ESP32: WiFi + USB HID + BLE + Keyboard Layouts
+- Keyboard layout selectable via web UI (US, Swiss German, German, French, UK, Spanish, Italian)
 - iOS app: Voice recognition + BLE - ready for testing
 
 ## TODO
 
-- [ ] Swiss German keyboard layout support on ESP32
+- [x] Swiss German keyboard layout support on ESP32
 - [ ] iOS app testing and refinement
 - [ ] Auto-reconnect on BLE disconnect
 

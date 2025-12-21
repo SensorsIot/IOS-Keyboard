@@ -1,8 +1,8 @@
 # IOS-Keyboard Functional Specification Document
 
-**Version:** 1.5
+**Version:** 1.6
 **Date:** 2025-12-21
-**Status:** Phase 3 Complete - HID + BLE Working
+**Status:** Phase 4 Complete - Keyboard Layouts
 
 ---
 
@@ -69,7 +69,9 @@ This document specifies the functional requirements for an ESP32-C3 based USB ke
 | FR-USB-02 | Device shall be recognized by the host OS without additional drivers | Must |
 | FR-USB-03 | Device shall send keyboard HID reports to type characters | Must |
 | FR-USB-04 | Device shall type "hello world" as initial functionality | Must |
-| FR-USB-05 | Device shall support standard US keyboard layout | Must |
+| FR-USB-05 | Device shall support multiple keyboard layouts (US, Swiss German, German, French, UK, Spanish, Italian) | Must |
+| FR-USB-06 | Device shall persist selected keyboard layout to NVS | Must |
+| FR-USB-07 | Device shall provide API endpoint to list/select keyboard layouts | Must |
 
 ### 3.2 OTA Firmware Updates
 
@@ -221,6 +223,8 @@ Since Serial/UART is unavailable (USB used for HID), debugging is done via WiFi 
 | `/ota` | POST | Trigger OTA update from configured URL |
 | `/ota` | GET | OTA status page |
 | `/type` | POST | Trigger keyboard output manually |
+| `/keyboard` | GET | Get current layout and list available layouts |
+| `/keyboard` | POST | Set keyboard layout (JSON: `{"layout":"ch-de"}`) |
 | `/reset-wifi` | POST | Clear WiFi credentials, reboot to AP mode |
 
 ### 5.5 BLE GATT Interface
@@ -260,6 +264,7 @@ The ESP32 acts as a BLE peripheral exposing a Nordic UART Service (NUS) compatib
 |-----------|---------|-------------|
 | WiFi SSID | NVS | Configured via captive portal |
 | WiFi Password | NVS | Configured via captive portal |
+| Keyboard Layout | NVS | Selected via debug web UI (default: Swiss German) |
 
 ---
 
@@ -282,7 +287,8 @@ IOS-Keyboard/
 │   ├── ota_handler.c/h     # HTTP OTA with rollback
 │   ├── ble_gatt.c/h        # BLE peripheral, NUS service (Phase 2)
 │   ├── command_parser.c/h  # Parse binary command packets (Phase 2)
-│   └── usb_hid.c/h         # USB HID keyboard functions (Phase 2)
+│   ├── usb_hid.c/h         # USB HID keyboard functions (Phase 2)
+│   └── keyboard_layout.c/h # Multi-keyboard layout support (Phase 4)
 ├── partitions.csv          # Custom partition table for OTA
 └── sdkconfig.defaults      # Default Kconfig settings
 ```
@@ -310,3 +316,4 @@ IOS-Keyboard/
 | 1.3 | 2025-12-21 | - | Merged BLE GATT interface from esp32_functional_description.md; added command protocol, NUS service spec; updated architecture for ESP32-C3/S3 |
 | 1.4 | 2025-12-21 | - | Phase 2 HID working: USB keyboard types via /type endpoint; fixed TinyUSB configuration; BLE pending |
 | 1.5 | 2025-12-21 | - | Phase 3 complete: BLE GATT with NimBLE working; Nordic UART Service for iOS app; command protocol (backspace/insert/enter) functional |
+| 1.6 | 2025-12-21 | - | Phase 4 complete: Multi-keyboard layout support (US, Swiss German, German, French, UK, Spanish, Italian); layout persists to NVS; selectable via web UI dropdown |

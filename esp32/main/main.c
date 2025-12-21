@@ -10,6 +10,7 @@
 #include "captive_portal.h"
 #include "debug_server.h"
 #include "ota_handler.h"
+#include "keyboard_layout.h"
 #if CONFIG_ENABLE_HID
 #include "usb_hid.h"
 #endif
@@ -50,6 +51,11 @@ void app_main(void)
 
     // Initialize OTA handler
     ESP_ERROR_CHECK(ota_handler_init());
+
+    // Initialize keyboard layout (loads from NVS)
+    ESP_ERROR_CHECK(keyboard_layout_init());
+    const keyboard_layout_info_t *layout = keyboard_layout_get_info(keyboard_layout_get());
+    ESP_LOGI(TAG, "Keyboard layout: %s", layout ? layout->name : "Unknown");
 
     // Initialize WiFi manager
     ESP_ERROR_CHECK(wifi_manager_init());

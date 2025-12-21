@@ -2,6 +2,7 @@
 #include "wifi_manager.h"
 #include "ota_handler.h"
 #include "config.h"
+#include "keyboard_layout.h"
 #if CONFIG_ENABLE_HID
 #include "usb_hid.h"
 #endif
@@ -49,8 +50,9 @@ static const char DEBUG_HTML[] =
 "button:hover{background:#0c0;}"
 "button.danger{background:#f00;color:#fff;}"
 "button.danger:hover{background:#c00;}"
-"input{padding:10px;background:#000;color:#0f0;border:1px solid #0f0;"
-"border-radius:3px;width:100%;box-sizing:border-box;font-family:monospace;}"
+"input,select{padding:10px;background:#000;color:#0f0;border:1px solid #0f0;"
+"border-radius:3px;font-family:monospace;}"
+"input{width:100%;box-sizing:border-box;}"
 ".logs{background:#000;padding:10px;border:1px solid #333;border-radius:3px;"
 "height:300px;overflow-y:auto;font-size:12px;}"
 ".log-entry{padding:2px 0;border-bottom:1px solid #222;}"
@@ -69,6 +71,7 @@ static const char DEBUG_HTML[] =
 "<div class='status-row'><span class='status-label'>IP Address:</span><span class='status-value' id='ip'>-</span></div>"
 "<div class='status-row'><span class='status-label'>RSSI:</span><span class='status-value' id='rssi'>-</span></div>"
 "<div class='status-row'><span class='status-label'>Free Heap:</span><span class='status-value' id='heap'>-</span></div>"
+"<div class='status-row'><span class='status-label'>Keyboard:</span><span class='status-value'><select id='keyboard' onchange='setKeyboard()'></select></span></div>"
 "</div>"
 "<div class='card'>"
 "<h3>OTA Update</h3>"
@@ -128,7 +131,21 @@ static const char DEBUG_HTML[] =
 "fetch('/logs').then(r=>r.json()).then(d=>{"
 "let html='';d.logs.forEach(l=>{html+='<div class=\"log-entry\">'+l+'</div>';});"
 "document.getElementById('logs').innerHTML=html;});}"
-"updateStatus();refreshLogs();"
+"function loadKeyboard(){"
+"fetch('/keyboard').then(r=>r.json()).then(d=>{"
+"let sel=document.getElementById('keyboard');"
+"sel.innerHTML='';"
+"d.layouts.forEach(l=>{"
+"let opt=document.createElement('option');"
+"opt.value=l.code;opt.textContent=l.name;"
+"if(l.code===d.current)opt.selected=true;"
+"sel.appendChild(opt);});});}"
+"function setKeyboard(){"
+"let code=document.getElementById('keyboard').value;"
+"fetch('/keyboard',{method:'POST',headers:{'Content-Type':'application/json'},"
+"body:JSON.stringify({layout:code})}).then(r=>r.json()).then(d=>{"
+"if(!d.success)alert('Failed: '+d.message);});}"
+"updateStatus();refreshLogs();loadKeyboard();"
 "setInterval(updateStatus,5000);"
 "</script>"
 "</body></html>";
@@ -388,6 +405,84 @@ static esp_err_t reboot_handler(httpd_req_t *req)
     return ESP_OK;
 }
 
+// Handler for GET keyboard layout
+static esp_err_t keyboard_get_handler(httpd_req_t *req)
+{
+    cJSON *root = cJSON_CreateObject();
+
+    // Current layout
+    keyboard_layout_t current = keyboard_layout_get();
+    const keyboard_layout_info_t *info = keyboard_layout_get_info(current);
+    cJSON_AddStringToObject(root, "current", info ? info->code : "us");
+
+    // All available layouts
+    int count = 0;
+    const keyboard_layout_info_t *layouts = keyboard_layout_get_all(&count);
+    cJSON *layouts_arr = cJSON_CreateArray();
+    for (int i = 0; i < count; i++) {
+        cJSON *layout_obj = cJSON_CreateObject();
+        cJSON_AddStringToObject(layout_obj, "code", layouts[i].code);
+        cJSON_AddStringToObject(layout_obj, "name", layouts[i].name);
+        cJSON_AddItemToArray(layouts_arr, layout_obj);
+    }
+    cJSON_AddItemToObject(root, "layouts", layouts_arr);
+
+    char *json = cJSON_PrintUnformatted(root);
+    httpd_resp_set_type(req, "application/json");
+    httpd_resp_send(req, json, HTTPD_RESP_USE_STRLEN);
+
+    free(json);
+    cJSON_Delete(root);
+    return ESP_OK;
+}
+
+// Handler for POST keyboard layout
+static esp_err_t keyboard_post_handler(httpd_req_t *req)
+{
+    char buf[128];
+    int ret = httpd_req_recv(req, buf, sizeof(buf) - 1);
+    if (ret <= 0) {
+        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "No data");
+        return ESP_FAIL;
+    }
+    buf[ret] = '\0';
+
+    cJSON *root = cJSON_Parse(buf);
+    if (root == NULL) {
+        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Invalid JSON");
+        return ESP_FAIL;
+    }
+
+    cJSON *layout_json = cJSON_GetObjectItem(root, "layout");
+    if (!cJSON_IsString(layout_json)) {
+        cJSON_Delete(root);
+        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "layout required");
+        return ESP_FAIL;
+    }
+
+    esp_err_t err = keyboard_layout_set_by_code(layout_json->valuestring);
+    cJSON_Delete(root);
+
+    cJSON *response = cJSON_CreateObject();
+    if (err == ESP_OK) {
+        const keyboard_layout_info_t *info = keyboard_layout_get_info(keyboard_layout_get());
+        cJSON_AddBoolToObject(response, "success", true);
+        cJSON_AddStringToObject(response, "message", info ? info->name : "Layout set");
+        debug_server_log("Keyboard layout: %s", info ? info->name : "unknown");
+    } else {
+        cJSON_AddBoolToObject(response, "success", false);
+        cJSON_AddStringToObject(response, "message", "Invalid layout code");
+    }
+
+    char *json = cJSON_PrintUnformatted(response);
+    httpd_resp_set_type(req, "application/json");
+    httpd_resp_send(req, json, HTTPD_RESP_USE_STRLEN);
+
+    free(json);
+    cJSON_Delete(response);
+    return ESP_OK;
+}
+
 esp_err_t debug_server_start(void)
 {
     if (s_server != NULL) {
@@ -425,6 +520,8 @@ esp_err_t debug_server_start(void)
         {.uri = "/type", .method = HTTP_POST, .handler = type_handler},
         {.uri = "/reset-wifi", .method = HTTP_POST, .handler = reset_wifi_handler},
         {.uri = "/reboot", .method = HTTP_POST, .handler = reboot_handler},
+        {.uri = "/keyboard", .method = HTTP_GET, .handler = keyboard_get_handler},
+        {.uri = "/keyboard", .method = HTTP_POST, .handler = keyboard_post_handler},
     };
 
     for (int i = 0; i < sizeof(handlers) / sizeof(handlers[0]); i++) {

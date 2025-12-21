@@ -7,6 +7,7 @@ set(SRCS
     "usb_hid.c"
     "command_parser.c"
     "ble_gatt.c"
+    "keyboard_layout.c"
 )
 
 set(REQUIRES

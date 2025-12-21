@@ -22,6 +22,7 @@ idf.py -p /dev/ttyACM0 flash
 - `main/usb_hid.c` - TinyUSB HID keyboard implementation
 - `main/ble_gatt.c` - BLE GATT server (NimBLE)
 - `main/debug_server.c` - Web API endpoints
+- `main/keyboard_layout.c` - Keyboard layout support (US, Swiss German, German, French, UK, Spanish, Italian)
 - `sdkconfig.defaults` - ESP-IDF build configuration
 
 ## Initialization Order
@@ -37,9 +38,11 @@ Critical order for debugging to work:
 
 ## Current Status
 
-- v2.7.0: HID + BLE working
+- v2.8.0: HID + BLE + Keyboard Layouts
 - BLE advertises as "IOS-Keyboard" with Nordic UART Service
 - Commands via BLE: `0x02`+text (type), `0x01`+count (backspace), `0x03` (enter)
+- Keyboard layout selectable via web UI dropdown (persists to NVS)
+- API: `GET /keyboard` (list layouts), `POST /keyboard {"layout":"ch-de"}` (set layout)
 
 ## OTA Testing
 

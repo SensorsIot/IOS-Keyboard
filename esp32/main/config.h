@@ -3,7 +3,7 @@
 
 // Application version (can be overridden via build flags)
 #ifndef CONFIG_APP_VERSION
-#define CONFIG_APP_VERSION "2.7.0"
+#define CONFIG_APP_VERSION "2.8.0"
 #endif
 
 // Access Point configuration for captive portal
