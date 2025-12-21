@@ -1,5 +1,8 @@
-# ESP-IDF SDK Configuration defaults for IOS-Keyboard
-# These settings are applied when building with PlatformIO
+# IOS-Keyboard ESP-IDF Configuration
+
+# Flash size (4MB)
+CONFIG_ESPTOOLPY_FLASHSIZE_4MB=y
+CONFIG_ESPTOOLPY_FLASHSIZE="4MB"
 
 # Partition Table
 CONFIG_PARTITION_TABLE_CUSTOM=y
@@ -22,12 +25,16 @@ CONFIG_LOG_DEFAULT_LEVEL=3
 # HTTPS OTA (allow HTTP for testing)
 CONFIG_ESP_HTTPS_OTA_ALLOW_HTTP=y
 
-# cJSON
-CONFIG_CJSON_SUPPORT=y
-
-# Console output via USB CDC (Phase 1)
+# Console output via USB CDC
 CONFIG_ESP_CONSOLE_USB_CDC=y
 CONFIG_ESP_CONSOLE_SECONDARY_NONE=y
 
+# USB CDC on boot
+CONFIG_ESP_CONSOLE_USB_CDC_RX_BUF_SIZE=256
+CONFIG_ESP_CONSOLE_USB_CDC_SUPPORT_ETS_PRINTF=y
+
 # Memory optimization
 CONFIG_COMPILER_OPTIMIZATION_SIZE=y
+
+# mDNS
+CONFIG_MDNS_MAX_SERVICES=10

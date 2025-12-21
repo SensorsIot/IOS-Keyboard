@@ -1,4 +1,4 @@
-# ESP32-C3 Partition Table for OTA
+# ESP32-C3 Partition Table for OTA (4MB flash)
 # Name,   Type, SubType, Offset,   Size,    Flags
 nvs,      data, nvs,     0x9000,   0x4000,
 otadata,  data, ota,     0xd000,   0x2000,

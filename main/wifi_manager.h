@@ -4,11 +4,11 @@
 #include <stdbool.h>
 #include "esp_err.h"
 
-// WiFi mode
+// WiFi manager mode (prefixed to avoid conflict with ESP-IDF wifi_mode_t)
 typedef enum {
-    WIFI_MODE_NONE,
-    WIFI_MODE_AP,      // Access Point mode (captive portal)
-    WIFI_MODE_STA,     // Station mode (connected to network)
+    WIFI_MGR_MODE_NONE,
+    WIFI_MGR_MODE_AP,      // Access Point mode (captive portal)
+    WIFI_MGR_MODE_STA,     // Station mode (connected to network)
 } wifi_manager_mode_t;
 
 // WiFi status

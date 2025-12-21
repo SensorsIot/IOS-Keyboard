@@ -1,6 +1,7 @@
 #ifndef DEBUG_SERVER_H
 #define DEBUG_SERVER_H
 
+#include <stdbool.h>
 #include "esp_err.h"
 
 /**

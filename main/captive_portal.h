@@ -1,6 +1,7 @@
 #ifndef CAPTIVE_PORTAL_H
 #define CAPTIVE_PORTAL_H
 
+#include <stdbool.h>
 #include "esp_err.h"
 
 /**

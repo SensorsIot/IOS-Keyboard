@@ -195,7 +195,7 @@ static esp_err_t status_handler(httpd_req_t *req)
     wifi_manager_status_t status = wifi_manager_get_status();
 
     cJSON *root = cJSON_CreateObject();
-    cJSON_AddStringToObject(root, "mode", status.mode == WIFI_MODE_AP ? "ap" : "sta");
+    cJSON_AddStringToObject(root, "mode", status.mode == WIFI_MGR_MODE_AP ? "ap" : "sta");
     cJSON_AddBoolToObject(root, "connected", status.connected);
     cJSON_AddStringToObject(root, "ssid", status.ssid);
     cJSON_AddStringToObject(root, "ip", status.ip_addr);

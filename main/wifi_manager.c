@@ -105,20 +105,16 @@ static void wifi_event_handler(void *arg, esp_event_base_t event_base,
 
             case WIFI_EVENT_AP_START:
                 ESP_LOGI(TAG, "AP started: %s", CONFIG_AP_SSID);
-                s_status.mode = WIFI_MODE_AP;
+                s_status.mode = WIFI_MGR_MODE_AP;
                 break;
 
-            case WIFI_EVENT_AP_STACONNECTED: {
-                wifi_event_ap_staconnected_t *event = (wifi_event_ap_staconnected_t *)event_data;
-                ESP_LOGI(TAG, "Station connected, MAC: " MACSTR, MAC2STR(event->mac));
+            case WIFI_EVENT_AP_STACONNECTED:
+                ESP_LOGI(TAG, "Station connected to AP");
                 break;
-            }
 
-            case WIFI_EVENT_AP_STADISCONNECTED: {
-                wifi_event_ap_stadisconnected_t *event = (wifi_event_ap_stadisconnected_t *)event_data;
-                ESP_LOGI(TAG, "Station disconnected, MAC: " MACSTR, MAC2STR(event->mac));
+            case WIFI_EVENT_AP_STADISCONNECTED:
+                ESP_LOGI(TAG, "Station disconnected from AP");
                 break;
-            }
 
             default:
                 break;
@@ -153,7 +149,7 @@ esp_err_t wifi_manager_start(void)
 
 esp_err_t wifi_manager_start_ap(void)
 {
-    ESP_ERROR_CHECK(esp_wifi_stop());
+    esp_wifi_stop();  // Stop WiFi if running (ignore errors)
 
     wifi_config_t wifi_config = {
         .ap = {
@@ -166,11 +162,12 @@ esp_err_t wifi_manager_start_ap(void)
         },
     };
 
-    ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_AP));
+    // Use APSTA mode to enable WiFi scanning while also being an access point
+    ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_APSTA));
     ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_AP, &wifi_config));
     ESP_ERROR_CHECK(esp_wifi_start());
 
-    s_status.mode = WIFI_MODE_AP;
+    s_status.mode = WIFI_MGR_MODE_AP;
     s_status.connected = false;
     strncpy(s_status.ssid, CONFIG_AP_SSID, sizeof(s_status.ssid) - 1);
     strncpy(s_status.ip_addr, CONFIG_AP_IP, sizeof(s_status.ip_addr) - 1);
@@ -210,7 +207,7 @@ esp_err_t wifi_manager_start_sta(void)
     }
     nvs_close(nvs);
 
-    ESP_ERROR_CHECK(esp_wifi_stop());
+    esp_wifi_stop();  // Stop WiFi if running (ignore errors)
 
     wifi_config_t wifi_config = {
         .sta = {
@@ -224,7 +221,7 @@ esp_err_t wifi_manager_start_sta(void)
     ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_config));
     ESP_ERROR_CHECK(esp_wifi_start());
 
-    s_status.mode = WIFI_MODE_STA;
+    s_status.mode = WIFI_MGR_MODE_STA;
     strncpy(s_status.ssid, ssid, sizeof(s_status.ssid) - 1);
 
     ESP_LOGI(TAG, "STA mode started, connecting to: %s", ssid);
@@ -326,7 +323,7 @@ esp_err_t wifi_manager_clear_credentials(void)
 wifi_manager_status_t wifi_manager_get_status(void)
 {
     // Update RSSI if connected
-    if (s_status.mode == WIFI_MODE_STA && s_status.connected) {
+    if (s_status.mode == WIFI_MGR_MODE_STA && s_status.connected) {
         wifi_ap_record_t ap_info;
         if (esp_wifi_sta_get_ap_info(&ap_info) == ESP_OK) {
             s_status.rssi = ap_info.rssi;
@@ -348,7 +345,11 @@ int wifi_manager_scan(char results[][33], int8_t rssi[], int max_results)
         .show_hidden = false,
     };
 
-    ESP_ERROR_CHECK(esp_wifi_scan_start(&scan_config, true));
+    esp_err_t scan_ret = esp_wifi_scan_start(&scan_config, true);
+    if (scan_ret != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to start scan: %s", esp_err_to_name(scan_ret));
+        return 0;
+    }
     ESP_ERROR_CHECK(esp_wifi_scan_get_ap_num(&ap_count));
 
     if (ap_count == 0) {
@@ -380,7 +381,7 @@ esp_err_t wifi_manager_try_connect(const char *ssid, const char *password)
 {
     esp_err_t ret;
 
-    ESP_ERROR_CHECK(esp_wifi_stop());
+    esp_wifi_stop();  // Stop WiFi if running (ignore errors)
 
     wifi_config_t wifi_config = {
         .sta = {
@@ -397,7 +398,7 @@ esp_err_t wifi_manager_try_connect(const char *ssid, const char *password)
     ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_config));
     ESP_ERROR_CHECK(esp_wifi_start());
 
-    s_status.mode = WIFI_MODE_STA;
+    s_status.mode = WIFI_MGR_MODE_STA;
     strncpy(s_status.ssid, ssid, sizeof(s_status.ssid) - 1);
 
     // Wait for connection
