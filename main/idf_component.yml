@@ -1,3 +1,4 @@
 dependencies:
   espressif/mdns: "^1.2"
   espressif/cjson: "^1.0"
+  espressif/esp_tinyusb: "^1.0"

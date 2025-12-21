@@ -1,8 +1,8 @@
 # IOS-Keyboard Functional Specification Document
 
-**Version:** 1.2
+**Version:** 1.4
 **Date:** 2025-12-21
-**Status:** Phase 1 Complete
+**Status:** Phase 2 In Progress - HID Working, BLE Next
 
 ---
 
@@ -28,20 +28,27 @@ This document specifies the functional requirements for an ESP32-C3 based USB ke
 ## 2. System Architecture
 
 ### 2.1 Hardware
-- **Microcontroller:** ESP32-C3 (RISC-V, with native USB support)
+- **Microcontroller:** ESP32-C3 or ESP32-S3 (both support native USB + BLE)
 - **USB Connection:** Native USB port used for HID keyboard emulation
-- **WiFi:** Built-in 2.4GHz WiFi for OTA updates
+- **WiFi:** Built-in 2.4GHz WiFi for OTA updates and debug interface
+- **BLE:** Bluetooth Low Energy for iPhone communication
+
+> **Note:** ESP32-C3 (RISC-V) and ESP32-S3 (Xtensa) both support native USB and BLE. The S3 has more RAM/flash and dual-core, but C3 is sufficient for this application.
 
 ### 2.2 Software Stack
 ```
 +------------------+
-|   Application    |  <- Keyboard logic, OTA handler
+|   Application    |  <- State machine, command dispatch
++------------------+
+|    BLE GATT      |  <- iPhone communication (UART service)
++------------------+
+|  WiFi + Web      |  <- Captive portal, debug server, OTA
 +------------------+
 |    TinyUSB HID   |  <- USB keyboard emulation
 +------------------+
-|     ESP-IDF      |  <- WiFi, OTA, system functions
+|     ESP-IDF      |  <- System functions, NVS, drivers
 +------------------+
-|   ESP32-C3 HW    |
+|  ESP32-C3/S3 HW  |
 +------------------+
 ```
 
@@ -115,6 +122,19 @@ This document specifies the functional requirements for an ESP32-C3 based USB ke
 |----|-------------|----------|
 | FR-TRIG-01 | Device shall have a configurable trigger for keyboard output | Must |
 | FR-TRIG-02 | Initial trigger: type "hello world" on device boot | Must |
+
+### 3.7 BLE Command Interface
+
+| ID | Requirement | Priority |
+|----|-------------|----------|
+| FR-BLE-01 | Device shall act as BLE peripheral with UART-like service | Must |
+| FR-BLE-02 | Device shall advertise and accept connections from iPhone app | Must |
+| FR-BLE-03 | Device shall expose a write characteristic for receiving commands | Must |
+| FR-BLE-04 | Device shall parse binary command packets from BLE | Must |
+| FR-BLE-05 | Command `0x01 <count>` shall send `<count>` backspace keystrokes | Must |
+| FR-BLE-06 | Command `0x02 <text>` shall type the text characters via HID | Must |
+| FR-BLE-07 | Command `0x03` shall send Enter key | Must |
+| FR-BLE-08 | Device shall handle malformed packets gracefully | Should |
 
 ---
 
@@ -203,6 +223,26 @@ Since Serial/UART is unavailable (USB used for HID), debugging is done via WiFi 
 | `/type` | POST | Trigger keyboard output manually |
 | `/reset-wifi` | POST | Clear WiFi credentials, reboot to AP mode |
 
+### 5.5 BLE GATT Interface
+
+The ESP32 acts as a BLE peripheral exposing a Nordic UART Service (NUS) compatible interface.
+
+- **Service UUID:** `6E400001-B5A3-F393-E0A9-E50E24DCCA9E`
+- **RX Characteristic:** `6E400002-B5A3-F393-E0A9-E50E24DCCA9E` (Write)
+- **TX Characteristic:** `6E400003-B5A3-F393-E0A9-E50E24DCCA9E` (Notify)
+
+**Command Packet Format:**
+| Byte 0 | Bytes 1-N | Description |
+|--------|-----------|-------------|
+| `0x01` | `<count>` | Send `count` backspace keystrokes |
+| `0x02` | `<text>` | Type ASCII/UTF-8 text characters |
+| `0x03` | (none) | Send Enter key |
+
+**Example Packets:**
+- `01 05` → Send 5 backspaces
+- `02 48 65 6C 6C 6F` → Type "Hello"
+- `03` → Send Enter
+
 ---
 
 ## 6. Configuration
@@ -233,13 +273,16 @@ IOS-Keyboard/
 │   └── IOS-Keyboard-fsd.md # This document
 ├── main/
 │   ├── CMakeLists.txt      # Component CMake
-│   ├── idf_component.yml   # Component dependencies (mdns, cjson)
+│   ├── idf_component.yml   # Component dependencies (mdns, cjson, bt)
 │   ├── config.h            # Configuration defines and feature flags
-│   ├── main.c              # Application entry point
+│   ├── main.c              # Application entry point, state machine
 │   ├── wifi_manager.c/h    # WiFi AP/STA mode, NVS credentials
 │   ├── captive_portal.c/h  # AP mode web server
 │   ├── debug_server.c/h    # STA mode debug web server
-│   └── ota_handler.c/h     # HTTP OTA with rollback
+│   ├── ota_handler.c/h     # HTTP OTA with rollback
+│   ├── ble_gatt.c/h        # BLE peripheral, NUS service (Phase 2)
+│   ├── command_parser.c/h  # Parse binary command packets (Phase 2)
+│   └── usb_hid.c/h         # USB HID keyboard functions (Phase 2)
 ├── partitions.csv          # Custom partition table for OTA
 └── sdkconfig.defaults      # Default Kconfig settings
 ```
@@ -264,3 +307,5 @@ IOS-Keyboard/
 | 1.0 | 2025-12-21 | - | Initial draft |
 | 1.1 | 2025-12-21 | - | Added WiFi debugging requirements |
 | 1.2 | 2025-12-21 | - | Phase 1 complete: OTA tested, updated to ESP-IDF native build |
+| 1.3 | 2025-12-21 | - | Merged BLE GATT interface from esp32_functional_description.md; added command protocol, NUS service spec; updated architecture for ESP32-C3/S3 |
+| 1.4 | 2025-12-21 | - | Phase 2 HID working: USB keyboard types via /type endpoint; fixed TinyUSB configuration; BLE pending |

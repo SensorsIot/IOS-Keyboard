@@ -25,7 +25,9 @@ static void ota_task(void *pvParameter)
     const char *url = (const char *)pvParameter;
     esp_err_t err;
 
-    ESP_LOGI(TAG, "Starting OTA from: %s", url);
+    ESP_LOGI(TAG, "=== OTA UPDATE STARTING ===");
+    ESP_LOGI(TAG, "URL: %s", url);
+    ESP_LOGI(TAG, "Timeout: %d ms", CONFIG_OTA_RECV_TIMEOUT_MS);
 
     s_progress.status = OTA_STATUS_DOWNLOADING;
     s_progress.progress = 0;
@@ -45,6 +47,7 @@ static void ota_task(void *pvParameter)
 
     esp_https_ota_handle_t https_ota_handle = NULL;
 
+    ESP_LOGI(TAG, "Calling esp_https_ota_begin...");
     err = esp_https_ota_begin(&ota_config, &https_ota_handle);
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "OTA begin failed: %s", esp_err_to_name(err));
@@ -55,12 +58,15 @@ static void ota_task(void *pvParameter)
         vTaskDelete(NULL);
         return;
     }
+    ESP_LOGI(TAG, "OTA begin successful");
 
     // Get image size
     s_progress.total_size = esp_https_ota_get_image_size(https_ota_handle);
     ESP_LOGI(TAG, "Firmware size: %d bytes", s_progress.total_size);
 
     // Download and flash
+    ESP_LOGI(TAG, "Starting download loop...");
+    int last_pct = -1;
     while (1) {
         err = esp_https_ota_perform(https_ota_handle);
         if (err != ESP_ERR_HTTPS_OTA_IN_PROGRESS) {
@@ -72,9 +78,15 @@ static void ota_task(void *pvParameter)
             s_progress.progress = (s_progress.downloaded * 100) / s_progress.total_size;
         }
 
-        ESP_LOGD(TAG, "Downloaded: %d / %d (%d%%)",
-                 s_progress.downloaded, s_progress.total_size, s_progress.progress);
+        // Log every 10%
+        if (s_progress.progress / 10 != last_pct / 10) {
+            ESP_LOGI(TAG, "Progress: %d%% (%d / %d bytes)",
+                     s_progress.progress, s_progress.downloaded, s_progress.total_size);
+            last_pct = s_progress.progress;
+        }
     }
+
+    ESP_LOGI(TAG, "Download loop finished with err=%s", esp_err_to_name(err));
 
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "OTA perform failed: %s", esp_err_to_name(err));

@@ -2,6 +2,9 @@
 #include "wifi_manager.h"
 #include "ota_handler.h"
 #include "config.h"
+#if CONFIG_ENABLE_HID
+#include "usb_hid.h"
+#endif
 
 #include <string.h>
 #include <stdarg.h>
@@ -252,14 +255,19 @@ static esp_err_t ota_handler(httpd_req_t *req)
         return ESP_FAIL;
     }
 
-    esp_err_t err = ota_handler_start(url_json->valuestring);
+    // Copy URL before deleting JSON
+    char url_copy[256];
+    strncpy(url_copy, url_json->valuestring, sizeof(url_copy) - 1);
+    url_copy[sizeof(url_copy) - 1] = '\0';
+
+    esp_err_t err = ota_handler_start(url_copy);
     cJSON_Delete(root);
 
     cJSON *response = cJSON_CreateObject();
     if (err == ESP_OK) {
         cJSON_AddBoolToObject(response, "success", true);
         cJSON_AddStringToObject(response, "message", "OTA started");
-        debug_server_log("OTA started: %s", url_json->valuestring);
+        debug_server_log("OTA started: %s", url_copy);
     } else {
         cJSON_AddBoolToObject(response, "success", false);
         cJSON_AddStringToObject(response, "message", esp_err_to_name(err));
@@ -274,18 +282,55 @@ static esp_err_t ota_handler(httpd_req_t *req)
     return ESP_OK;
 }
 
-// Handler for type test (placeholder - HID disabled in Phase 1)
+// Handler for type test
 static esp_err_t type_handler(httpd_req_t *req)
 {
     cJSON *response = cJSON_CreateObject();
 
 #if CONFIG_ENABLE_HID
-    cJSON_AddBoolToObject(response, "success", true);
-    cJSON_AddStringToObject(response, "message", "Typed 'hello world'");
-    debug_server_log("Keyboard output triggered");
+    // Read request body for text to type
+    char buf[256] = {0};
+    int ret = httpd_req_recv(req, buf, sizeof(buf) - 1);
+
+    char *text_to_type = "hello world";  // default
+
+    if (ret > 0) {
+        cJSON *root = cJSON_Parse(buf);
+        if (root) {
+            cJSON *text_json = cJSON_GetObjectItem(root, "text");
+            if (text_json && cJSON_IsString(text_json)) {
+                text_to_type = text_json->valuestring;
+            }
+
+            esp_err_t err = usb_hid_type_text(text_to_type);
+            if (err == ESP_OK) {
+                cJSON_AddBoolToObject(response, "success", true);
+                cJSON_AddStringToObject(response, "message", "Text typed successfully");
+                debug_server_log("Typed: %s", text_to_type);
+            } else {
+                cJSON_AddBoolToObject(response, "success", false);
+                cJSON_AddStringToObject(response, "message", esp_err_to_name(err));
+                debug_server_log("Type failed: %s", esp_err_to_name(err));
+            }
+            cJSON_Delete(root);
+        } else {
+            cJSON_AddBoolToObject(response, "success", false);
+            cJSON_AddStringToObject(response, "message", "Invalid JSON");
+        }
+    } else {
+        // No body - type default
+        esp_err_t err = usb_hid_type_text(text_to_type);
+        if (err == ESP_OK) {
+            cJSON_AddBoolToObject(response, "success", true);
+            cJSON_AddStringToObject(response, "message", "Typed 'hello world'");
+        } else {
+            cJSON_AddBoolToObject(response, "success", false);
+            cJSON_AddStringToObject(response, "message", esp_err_to_name(err));
+        }
+    }
 #else
     cJSON_AddBoolToObject(response, "success", false);
-    cJSON_AddStringToObject(response, "message", "HID disabled in Phase 1");
+    cJSON_AddStringToObject(response, "message", "HID disabled");
     debug_server_log("Type requested but HID disabled");
 #endif
 

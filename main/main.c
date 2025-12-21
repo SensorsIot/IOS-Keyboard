@@ -10,6 +10,13 @@
 #include "captive_portal.h"
 #include "debug_server.h"
 #include "ota_handler.h"
+#if CONFIG_ENABLE_HID
+#include "usb_hid.h"
+#endif
+#if CONFIG_ENABLE_BLE
+#include "ble_gatt.h"
+#include "command_parser.h"
+#endif
 
 static const char *TAG = "main";
 
@@ -32,7 +39,13 @@ void app_main(void)
 {
     ESP_LOGI(TAG, "=================================");
     ESP_LOGI(TAG, "  IOS-Keyboard v%s", CONFIG_APP_VERSION);
+#if CONFIG_ENABLE_HID && CONFIG_ENABLE_BLE
+    ESP_LOGI(TAG, "  Phase 2: HID + BLE");
+#elif CONFIG_ENABLE_HID
+    ESP_LOGI(TAG, "  Phase 2: HID Keyboard");
+#else
     ESP_LOGI(TAG, "  Phase 1: OTA Testing");
+#endif
     ESP_LOGI(TAG, "=================================");
 
     // Initialize OTA handler
@@ -66,10 +79,54 @@ void app_main(void)
             debug_server_log("Device started, connected to %s", status.ssid);
 
 #if CONFIG_ENABLE_HID
-            ESP_LOGI(TAG, "HID keyboard enabled");
+            // Initialize USB HID after WiFi is stable (so portal works for recovery)
+            ESP_LOGI(TAG, "Initializing USB HID...");
+            esp_err_t hid_err = usb_hid_init();
+            if (hid_err != ESP_OK) {
+                ESP_LOGE(TAG, "HID init failed: %s", esp_err_to_name(hid_err));
+                debug_server_log("HID init failed: %s", esp_err_to_name(hid_err));
+            } else {
+                ESP_LOGI(TAG, "HID keyboard enabled");
+                debug_server_log("HID keyboard enabled");
+            }
+
+            // Wait for USB to be ready, then type hello world
+            ESP_LOGI(TAG, "Waiting for USB HID to be ready...");
+            for (int i = 0; i < 50 && !usb_hid_is_ready(); i++) {
+                vTaskDelay(pdMS_TO_TICKS(100));
+            }
+
+            if (usb_hid_is_ready()) {
+                ESP_LOGI(TAG, "Typing 'hello world'...");
+                debug_server_log("Typing hello world");
+                vTaskDelay(pdMS_TO_TICKS(1000));  // Small delay before typing
+                usb_hid_type_hello_world();
+            } else {
+                ESP_LOGW(TAG, "USB HID not ready, skipping hello world");
+                debug_server_log("USB not ready - connect to USB host");
+            }
 #else
             ESP_LOGI(TAG, "HID disabled (Phase 1 - OTA testing)");
             debug_server_log("HID disabled - Phase 1 OTA testing mode");
+#endif
+
+#if CONFIG_ENABLE_BLE
+            // Initialize BLE last (WiFi/debug server must work first for debugging)
+            ESP_LOGI(TAG, "Initializing BLE GATT...");
+            debug_server_log("Starting BLE...");
+            esp_err_t ble_err = ble_gatt_init();
+            if (ble_err == ESP_OK) {
+                command_parser_init();
+                ble_gatt_set_rx_callback(command_parser_process);
+                ble_err = ble_gatt_start();
+            }
+            if (ble_err == ESP_OK) {
+                ESP_LOGI(TAG, "BLE advertising as '%s'", CONFIG_BLE_DEVICE_NAME);
+                debug_server_log("BLE enabled - connect from iPhone");
+            } else {
+                ESP_LOGE(TAG, "BLE init failed: %s", esp_err_to_name(ble_err));
+                debug_server_log("BLE failed: %s", esp_err_to_name(ble_err));
+            }
 #endif
         } else {
             ESP_LOGW(TAG, "Failed to connect, starting AP mode");

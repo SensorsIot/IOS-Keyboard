@@ -3,7 +3,7 @@
 
 // Application version (can be overridden via build flags)
 #ifndef CONFIG_APP_VERSION
-#define CONFIG_APP_VERSION "1.0.1"
+#define CONFIG_APP_VERSION "2.6.0"
 #endif
 
 // Access Point configuration for captive portal
@@ -48,13 +48,27 @@
 #define CONFIG_MDNS_HOSTNAME "ios-keyboard"
 
 // OTA settings
-#define CONFIG_OTA_RECV_TIMEOUT_MS 5000
-#define CONFIG_OTA_BUF_SIZE 1024
+#define CONFIG_OTA_RECV_TIMEOUT_MS 10000
+#define CONFIG_OTA_BUF_SIZE 4096
 
 // Feature flags for phased development
-#define CONFIG_ENABLE_HID 0  // Phase 1: HID disabled
+#define CONFIG_ENABLE_HID 1  // USB HID - init after WiFi for safe recovery
 #define CONFIG_ENABLE_OTA 1
 #define CONFIG_ENABLE_CAPTIVE_PORTAL 1
 #define CONFIG_ENABLE_DEBUG_SERVER 1
+#define CONFIG_ENABLE_BLE 0  // BLE disabled - fix build first
+
+// BLE Configuration
+#define CONFIG_BLE_DEVICE_NAME "IOS-Keyboard"
+
+// Nordic UART Service (NUS) UUIDs
+// Service: 6E400001-B5A3-F393-E0A9-E50E24DCCA9E
+// RX Char: 6E400002-B5A3-F393-E0A9-E50E24DCCA9E (Write - receive from phone)
+// TX Char: 6E400003-B5A3-F393-E0A9-E50E24DCCA9E (Notify - send to phone)
+
+// Command packet types
+#define CMD_BACKSPACE 0x01  // 0x01 <count> - send backspace count times
+#define CMD_INSERT    0x02  // 0x02 <text>  - type text characters
+#define CMD_ENTER     0x03  // 0x03         - send enter key
 
 #endif // CONFIG_H
