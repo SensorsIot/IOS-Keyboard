@@ -113,29 +113,34 @@ static uint16_t layout_ch_de_lookup(uint32_t cp) {
         case '\n': return KC(HID_KEY_ENTER);
         case '\t': return KC(HID_KEY_TAB);
 
-        // Swiss German shifted numbers
+        // Swiss German shifted numbers (Windows layout)
         case '+':  return KC_S(HID_KEY_1);
         case '"':  return KC_S(HID_KEY_2);
         case '*':  return KC_S(HID_KEY_3);
         // case 'ç':  return KC_S(HID_KEY_4);  // handled in unicode
         case '%':  return KC_S(HID_KEY_5);
         case '&':  return KC_S(HID_KEY_6);
+
+        // ! is on the § key (Shift+§) on Swiss German Windows keyboard
+        case '!':  return KC_S(HID_KEY_GRAVE);  // § key is at HID_KEY_GRAVE position
         case '/':  return KC_S(HID_KEY_7);
         case '(':  return KC_S(HID_KEY_8);
         case ')':  return KC_S(HID_KEY_9);
         case '=':  return KC_S(HID_KEY_0);
 
-        // Special characters on Swiss German
-        case '\'': return KC(HID_KEY_MINUS);           // ' key (unshifted -)
-        case '?':  return KC_S(HID_KEY_MINUS);         // ? key (shifted -)
-        case '^':  return KC(HID_KEY_EQUAL);           // ^ key (dead key, unshifted =)
-        case '`':  return KC_S(HID_KEY_EQUAL);         // ` key (dead key, shifted =)
+        // Special characters on Swiss German (Windows keyboard)
+        // Key right of 0: ' (unshifted) and ? (shifted)
+        case '\'': return KC(HID_KEY_MINUS);           // ' key
+        case '?':  return KC_S(HID_KEY_MINUS);         // ? key
+        // Key right of ': ^ (dead key, unshifted) and ` (shifted)
+        case '^':  return KC(HID_KEY_EQUAL);           // ^ dead key
+        case '`':  return KC_S(HID_KEY_EQUAL);         // ` dead key
 
-        // Umlauts - on Swiss German keyboard
+        // Umlauts and special characters on Swiss German keyboard
         case 0xFC: return KC(HID_KEY_BRACKET_LEFT);    // ü
         case 0xDC: return KC_S(HID_KEY_BRACKET_LEFT);  // Ü
-        case 0xE8: return KC(HID_KEY_BRACKET_RIGHT);   // è (on Swiss keyboard)
-        case 0xC8: return KC_S(HID_KEY_BRACKET_RIGHT); // È
+        case 0xE8: return KC(HID_KEY_BRACKET_RIGHT);   // è (¨ key unshifted gives dead umlaut/è)
+        // Note: Shift+BRACKET_RIGHT = ! on Swiss German (not È)
 
         case 0xF6: return KC(HID_KEY_SEMICOLON);       // ö
         case 0xD6: return KC_S(HID_KEY_SEMICOLON);     // Ö
@@ -689,6 +694,8 @@ int keyboard_layout_string_to_keycodes(const char *utf8_str, keycode_callback_t 
             uint8_t modifiers = (keydata >> 8) & 0xFF;
             callback(keycode, modifiers, ctx);
             count++;
+        } else {
+            ESP_LOGW(TAG, "No keycode for char 0x%02X '%c'", (unsigned)cp, (cp >= 32 && cp < 127) ? (char)cp : '?');
         }
 
         p += len;

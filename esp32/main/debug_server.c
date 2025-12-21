@@ -30,6 +30,57 @@ static SemaphoreHandle_t s_log_mutex = NULL;
 // Boot time for uptime calculation
 static int64_t s_boot_time = 0;
 
+// Debug trace buffer for BLE->HID data flow
+#define DEBUG_TRACE_SIZE 20
+#define DEBUG_TRACE_MSG_LEN 64
+static char s_ble_trace[DEBUG_TRACE_SIZE][DEBUG_TRACE_MSG_LEN];
+static char s_hid_trace[DEBUG_TRACE_SIZE][DEBUG_TRACE_MSG_LEN];
+static int s_ble_trace_idx = 0;
+static int s_hid_trace_idx = 0;
+static int s_ble_trace_count = 0;
+static int s_hid_trace_count = 0;
+static SemaphoreHandle_t s_trace_mutex = NULL;
+
+// Add BLE trace message
+void debug_server_trace_ble(const char *format, ...)
+{
+    if (s_trace_mutex == NULL) return;
+
+    va_list args;
+    va_start(args, format);
+
+    xSemaphoreTake(s_trace_mutex, portMAX_DELAY);
+
+    vsnprintf(s_ble_trace[s_ble_trace_idx], DEBUG_TRACE_MSG_LEN, format, args);
+    s_ble_trace_idx = (s_ble_trace_idx + 1) % DEBUG_TRACE_SIZE;
+    if (s_ble_trace_count < DEBUG_TRACE_SIZE) {
+        s_ble_trace_count++;
+    }
+
+    xSemaphoreGive(s_trace_mutex);
+    va_end(args);
+}
+
+// Add HID trace message
+void debug_server_trace_hid(const char *format, ...)
+{
+    if (s_trace_mutex == NULL) return;
+
+    va_list args;
+    va_start(args, format);
+
+    xSemaphoreTake(s_trace_mutex, portMAX_DELAY);
+
+    vsnprintf(s_hid_trace[s_hid_trace_idx], DEBUG_TRACE_MSG_LEN, format, args);
+    s_hid_trace_idx = (s_hid_trace_idx + 1) % DEBUG_TRACE_SIZE;
+    if (s_hid_trace_count < DEBUG_TRACE_SIZE) {
+        s_hid_trace_count++;
+    }
+
+    xSemaphoreGive(s_trace_mutex);
+    va_end(args);
+}
+
 // Embedded HTML for debug dashboard
 static const char DEBUG_HTML[] =
 "<!DOCTYPE html>"
@@ -92,6 +143,20 @@ static const char DEBUG_HTML[] =
 "<button class='danger' onclick='reboot()'>Reboot</button>"
 "</div>"
 "<div class='card'>"
+"<h3>BLE &rarr; HID Trace</h3>"
+"<button onclick='refreshTrace()'>Refresh Trace</button>"
+"<div style='display:flex;gap:10px;'>"
+"<div style='flex:1;'>"
+"<h4 style='color:#0ff;margin:5px 0;'>BLE Received</h4>"
+"<div class='logs' id='ble-trace' style='height:150px;border-color:#0ff;'></div>"
+"</div>"
+"<div style='flex:1;'>"
+"<h4 style='color:#ff0;margin:5px 0;'>HID Sent</h4>"
+"<div class='logs' id='hid-trace' style='height:150px;border-color:#ff0;'></div>"
+"</div>"
+"</div>"
+"</div>"
+"<div class='card'>"
 "<h3>Logs</h3>"
 "<button onclick='refreshLogs()'>Refresh Logs</button>"
 "<div class='logs' id='logs'></div>"
@@ -131,6 +196,12 @@ static const char DEBUG_HTML[] =
 "fetch('/logs').then(r=>r.json()).then(d=>{"
 "let html='';d.logs.forEach(l=>{html+='<div class=\"log-entry\">'+l+'</div>';});"
 "document.getElementById('logs').innerHTML=html;});}"
+"function refreshTrace(){"
+"fetch('/trace').then(r=>r.json()).then(d=>{"
+"let bleHtml='';d.ble.forEach(l=>{bleHtml+='<div class=\"log-entry\" style=\"color:#0ff;\">'+l+'</div>';});"
+"document.getElementById('ble-trace').innerHTML=bleHtml;"
+"let hidHtml='';d.hid.forEach(l=>{hidHtml+='<div class=\"log-entry\" style=\"color:#ff0;\">'+l+'</div>';});"
+"document.getElementById('hid-trace').innerHTML=hidHtml;});}"
 "function loadKeyboard(){"
 "fetch('/keyboard').then(r=>r.json()).then(d=>{"
 "let sel=document.getElementById('keyboard');"
@@ -145,8 +216,8 @@ static const char DEBUG_HTML[] =
 "fetch('/keyboard',{method:'POST',headers:{'Content-Type':'application/json'},"
 "body:JSON.stringify({layout:code})}).then(r=>r.json()).then(d=>{"
 "if(!d.success)alert('Failed: '+d.message);});}"
-"updateStatus();refreshLogs();loadKeyboard();"
-"setInterval(updateStatus,5000);"
+"updateStatus();refreshLogs();loadKeyboard();refreshTrace();"
+"setInterval(updateStatus,5000);setInterval(refreshTrace,2000);"
 "</script>"
 "</body></html>";
 
@@ -483,6 +554,45 @@ static esp_err_t keyboard_post_handler(httpd_req_t *req)
     return ESP_OK;
 }
 
+// Handler for trace data
+static esp_err_t trace_handler(httpd_req_t *req)
+{
+    cJSON *root = cJSON_CreateObject();
+    cJSON *ble_arr = cJSON_CreateArray();
+    cJSON *hid_arr = cJSON_CreateArray();
+
+    if (s_trace_mutex != NULL) {
+        xSemaphoreTake(s_trace_mutex, portMAX_DELAY);
+
+        // BLE trace
+        int ble_start = (s_ble_trace_count < DEBUG_TRACE_SIZE) ? 0 : s_ble_trace_idx;
+        for (int i = 0; i < s_ble_trace_count; i++) {
+            int idx = (ble_start + i) % DEBUG_TRACE_SIZE;
+            cJSON_AddItemToArray(ble_arr, cJSON_CreateString(s_ble_trace[idx]));
+        }
+
+        // HID trace
+        int hid_start = (s_hid_trace_count < DEBUG_TRACE_SIZE) ? 0 : s_hid_trace_idx;
+        for (int i = 0; i < s_hid_trace_count; i++) {
+            int idx = (hid_start + i) % DEBUG_TRACE_SIZE;
+            cJSON_AddItemToArray(hid_arr, cJSON_CreateString(s_hid_trace[idx]));
+        }
+
+        xSemaphoreGive(s_trace_mutex);
+    }
+
+    cJSON_AddItemToObject(root, "ble", ble_arr);
+    cJSON_AddItemToObject(root, "hid", hid_arr);
+
+    char *json = cJSON_PrintUnformatted(root);
+    httpd_resp_set_type(req, "application/json");
+    httpd_resp_send(req, json, HTTPD_RESP_USE_STRLEN);
+
+    free(json);
+    cJSON_Delete(root);
+    return ESP_OK;
+}
+
 esp_err_t debug_server_start(void)
 {
     if (s_server != NULL) {
@@ -495,13 +605,18 @@ esp_err_t debug_server_start(void)
         s_log_mutex = xSemaphoreCreateMutex();
     }
 
+    // Initialize trace mutex
+    if (s_trace_mutex == NULL) {
+        s_trace_mutex = xSemaphoreCreateMutex();
+    }
+
     // Record boot time
     if (s_boot_time == 0) {
         s_boot_time = esp_timer_get_time();
     }
 
     httpd_config_t config = HTTPD_DEFAULT_CONFIG();
-    config.max_uri_handlers = 12;
+    config.max_uri_handlers = 14;
 
     ESP_LOGI(TAG, "Starting debug server on port %d", config.server_port);
 
@@ -516,6 +631,7 @@ esp_err_t debug_server_start(void)
         {.uri = "/", .method = HTTP_GET, .handler = root_handler},
         {.uri = "/status", .method = HTTP_GET, .handler = status_handler},
         {.uri = "/logs", .method = HTTP_GET, .handler = logs_handler},
+        {.uri = "/trace", .method = HTTP_GET, .handler = trace_handler},
         {.uri = "/ota", .method = HTTP_POST, .handler = ota_handler},
         {.uri = "/type", .method = HTTP_POST, .handler = type_handler},
         {.uri = "/reset-wifi", .method = HTTP_POST, .handler = reset_wifi_handler},

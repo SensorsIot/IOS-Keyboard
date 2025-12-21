@@ -1,6 +1,7 @@
 #include "command_parser.h"
 #include "config.h"
 #include "usb_hid.h"
+#include "debug_server.h"
 
 #include <string.h>
 #include "esp_log.h"
@@ -31,6 +32,7 @@ void command_parser_process(const uint8_t *data, size_t len)
             }
             uint8_t count = data[1];
             ESP_LOGI(TAG, "Backspace x%d", count);
+            debug_server_trace_ble("BS x%d", count);
             for (uint8_t i = 0; i < count; i++) {
                 esp_err_t ret = usb_hid_send_backspace();
                 if (ret != ESP_OK) {
@@ -54,6 +56,13 @@ void command_parser_process(const uint8_t *data, size_t len)
             text[text_len] = '\0';
 
             ESP_LOGI(TAG, "Insert: %s", text);
+            // Truncate for trace display
+            char trace_text[32];
+            size_t trace_len = text_len > 28 ? 28 : text_len;
+            memcpy(trace_text, text, trace_len);
+            trace_text[trace_len] = '\0';
+            if (text_len > 28) strcat(trace_text, "...");
+            debug_server_trace_ble("TXT: %s", trace_text);
             esp_err_t ret = usb_hid_type_text(text);
             if (ret != ESP_OK) {
                 ESP_LOGE(TAG, "Failed to type text: %s", esp_err_to_name(ret));
@@ -64,6 +73,7 @@ void command_parser_process(const uint8_t *data, size_t len)
         case CMD_ENTER: {
             // 0x03 - send enter key
             ESP_LOGI(TAG, "Enter");
+            debug_server_trace_ble("ENTER");
             esp_err_t ret = usb_hid_send_enter();
             if (ret != ESP_OK) {
                 ESP_LOGE(TAG, "Failed to send enter: %s", esp_err_to_name(ret));
@@ -79,6 +89,7 @@ void command_parser_process(const uint8_t *data, size_t len)
             }
             char key = (char)data[1];
             ESP_LOGI(TAG, "Ctrl+%c", key);
+            debug_server_trace_ble("CTRL+%c", key);
             esp_err_t ret = usb_hid_send_ctrl_key(key);
             if (ret != ESP_OK) {
                 ESP_LOGE(TAG, "Failed to send Ctrl+%c: %s", key, esp_err_to_name(ret));

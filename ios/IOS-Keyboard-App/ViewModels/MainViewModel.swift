@@ -16,6 +16,7 @@ class MainViewModel: ObservableObject {
     // BLE
     @Published var isScanning = false
     @Published var isConnected = false
+    @Published var isAutoConnecting = false
     @Published var connectedDeviceName: String?
     @Published var discoveredDevices: [CBPeripheral] = []
 
@@ -23,6 +24,7 @@ class MainViewModel: ObservableObject {
     @Published var isRecording = false
     @Published var recognizedText = ""
     @Published var transmittedText = ""
+    private var isStopping = false  // Flag to ignore updates during stop
 
     // MARK: - Init
 
@@ -47,6 +49,10 @@ class MainViewModel: ObservableObject {
         bluetoothService.$discoveredDevices
             .receive(on: DispatchQueue.main)
             .assign(to: &$discoveredDevices)
+
+        bluetoothService.$isAutoConnecting
+            .receive(on: DispatchQueue.main)
+            .assign(to: &$isAutoConnecting)
 
         // Bind Speech service state
         speechService.$isRecording
@@ -106,12 +112,20 @@ class MainViewModel: ObservableObject {
     }
 
     func stopRecording() {
+        // Set flag to ignore any pending transcript updates
+        isStopping = true
+
         speechService.stopRecognition()
 
         // Clear display and reset for next recording (doesn't delete text on target)
         recognizedText = ""
         transmittedText = ""
         diffService.reset()
+
+        // Reset flag after a brief delay to ensure all pending updates are ignored
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            self.isStopping = false
+        }
 
         // Optionally send Enter when stopping
         // bluetoothService.sendEnter()
@@ -123,8 +137,8 @@ class MainViewModel: ObservableObject {
     private let magicWord = "Abrahadabra"
 
     private func handleTranscriptUpdate(_ newText: String) {
-        // Ignore empty updates to avoid deleting all text when recording stops
-        guard !newText.isEmpty else { return }
+        // Ignore updates when stopping or empty
+        guard !isStopping, !newText.isEmpty else { return }
 
         // Check for magic word and replace with Ctrl+J
         let processedText = processMagicWords(newText)

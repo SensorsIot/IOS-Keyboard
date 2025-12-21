@@ -1,6 +1,7 @@
 #include "usb_hid.h"
 #include "config.h"
 #include "keyboard_layout.h"
+#include "debug_server.h"
 
 #include <string.h>
 #include "freertos/FreeRTOS.h"
@@ -165,6 +166,8 @@ esp_err_t usb_hid_init(void)
 // Context for typing callback
 typedef struct {
     esp_err_t result;
+    const char *text;  // Current text being typed
+    int index;         // Current character index
 } type_context_t;
 
 // Callback for keyboard_layout_string_to_keycodes
@@ -174,6 +177,16 @@ static void type_key_callback(uint8_t keycode, uint8_t modifiers, void *ctx)
     if (type_ctx->result != ESP_OK) {
         return;  // Stop on first error
     }
+
+    // Get the character being typed for trace
+    char ch = type_ctx->text[type_ctx->index++];
+    // Show printable char, or hex for non-printable
+    if (ch >= 32 && ch < 127) {
+        debug_server_trace_hid("'%c' K:0x%02X M:0x%02X", ch, keycode, modifiers);
+    } else {
+        debug_server_trace_hid("0x%02X K:0x%02X M:0x%02X", (uint8_t)ch, keycode, modifiers);
+    }
+
     type_ctx->result = send_key(keycode, modifiers);
 }
 
@@ -190,7 +203,7 @@ esp_err_t usb_hid_type_text(const char *text)
 
     ESP_LOGI(TAG, "Typing: %s", text);
 
-    type_context_t ctx = { .result = ESP_OK };
+    type_context_t ctx = { .result = ESP_OK, .text = text, .index = 0 };
     int count = keyboard_layout_string_to_keycodes(text, type_key_callback, &ctx);
 
     ESP_LOGI(TAG, "Typed %d characters", count);
@@ -212,6 +225,7 @@ esp_err_t usb_hid_send_backspace(void)
     if (!s_usb_ready) {
         return ESP_ERR_INVALID_STATE;
     }
+    debug_server_trace_hid("BS K:0x%02X", HID_KEY_BACKSPACE);
     return send_key(HID_KEY_BACKSPACE, 0);
 }
 
@@ -220,6 +234,7 @@ esp_err_t usb_hid_send_enter(void)
     if (!s_usb_ready) {
         return ESP_ERR_INVALID_STATE;
     }
+    debug_server_trace_hid("ENTER K:0x%02X", HID_KEY_ENTER);
     return send_key(HID_KEY_ENTER, 0);
 }
 
@@ -240,6 +255,7 @@ esp_err_t usb_hid_send_ctrl_key(char key)
         return ESP_ERR_INVALID_ARG;
     }
 
+    debug_server_trace_hid("CTRL+%c K:0x%02X M:0x02", key, keycode);
     // Send with Left Ctrl modifier
     return send_key(keycode, KEYBOARD_MODIFIER_LEFTCTRL);
 }

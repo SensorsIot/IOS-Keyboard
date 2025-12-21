@@ -1,8 +1,8 @@
 # IOS-Keyboard Functional Specification Document
 
-**Version:** 1.7
+**Version:** 1.9
 **Date:** 2025-12-21
-**Status:** Phase 5 Complete - iOS App with Magic Words
+**Status:** Phase 5 Complete - Debug Trace Added
 
 ---
 
@@ -117,6 +117,8 @@ This document specifies the functional requirements for an ESP32-C3 based USB ke
 | FR-DBG-06 | Debug interface shall allow triggering keyboard output | Should |
 | FR-DBG-07 | Device shall buffer last N log messages for web display | Should |
 | FR-DBG-08 | Debug interface shall be accessible via mDNS (ios-keyboard.local) | Could |
+| FR-DBG-09 | Debug interface shall display BLE-received data in real-time trace view | Should |
+| FR-DBG-10 | Debug interface shall display HID-sent keycodes in real-time trace view | Should |
 
 ### 3.6 Trigger Mechanism
 
@@ -153,6 +155,10 @@ This document specifies the functional requirements for an ESP32-C3 based USB ke
 | FR-IOS-08 | App shall support magic words that trigger special key combinations | Must |
 | FR-IOS-09 | Magic word "Abrahadabra" shall send Ctrl+J (newline in Claude prompt) | Must |
 | FR-IOS-10 | App shall display recognized and transmitted text in real-time | Should |
+| FR-IOS-11 | App shall show simple "Connecting..." view when auto-connecting (no device list) | Must |
+| FR-IOS-12 | App shall show device list only when multiple devices found or no devices after scan | Must |
+| FR-IOS-13 | App shall ignore pending transcript updates when stopping to prevent retransmission | Must |
+| FR-IOS-14 | App shall have a microphone app icon | Should |
 
 ---
 
@@ -242,6 +248,7 @@ Since Serial/UART is unavailable (USB used for HID), debugging is done via WiFi 
 | `/keyboard` | GET | Get current layout and list available layouts |
 | `/keyboard` | POST | Set keyboard layout (JSON: `{"layout":"ch-de"}`) |
 | `/reset-wifi` | POST | Clear WiFi credentials, reboot to AP mode |
+| `/trace` | GET | Returns BLE and HID trace buffers (JSON: `{"ble":[...], "hid":[...]}`) |
 
 ### 5.5 BLE GATT Interface
 
@@ -352,3 +359,5 @@ IOS-Keyboard/
 | 1.5 | 2025-12-21 | - | Phase 3 complete: BLE GATT with NimBLE working; Nordic UART Service for iOS app; command protocol (backspace/insert/enter) functional |
 | 1.6 | 2025-12-21 | - | Phase 4 complete: Multi-keyboard layout support (US, Swiss German, German, French, UK, Spanish, Italian); layout persists to NVS; selectable via web UI dropdown |
 | 1.7 | 2025-12-21 | - | Phase 5 complete: iOS app with Xcode project; auto-scan/connect/reconnect; screen stays on; magic word "Abrahadabra" sends Ctrl+J; clear display on stop; added Ctrl+key command (0x04) |
+| 1.8 | 2025-12-21 | - | iOS app polish: Simple "Connecting..." view (no device list for single device); fix retransmission bug on stop; microphone app icon |
+| 1.9 | 2025-12-21 | - | Debug trace feature: Added BLE→HID trace view in debug web interface showing received commands and sent keycodes in real-time |

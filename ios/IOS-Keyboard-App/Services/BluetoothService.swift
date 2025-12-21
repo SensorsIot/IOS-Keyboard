@@ -20,6 +20,7 @@ class BluetoothService: NSObject, ObservableObject {
     // MARK: - Published State
     @Published var isScanning = false
     @Published var isConnected = false
+    @Published var isAutoConnecting = false  // True when auto-connecting to single device
     @Published var connectedDeviceName: String?
     @Published var discoveredDevices: [CBPeripheral] = []
 
@@ -63,7 +64,15 @@ class BluetoothService: NSObject, ObservableObject {
         if discoveredDevices.count == 1 {
             // Only one device found, auto-connect
             print("BLE: Auto-connecting to single device")
+            DispatchQueue.main.async {
+                self.isAutoConnecting = true
+            }
             connect(to: discoveredDevices[0])
+        } else {
+            // Multiple or no devices - show device list
+            DispatchQueue.main.async {
+                self.isAutoConnecting = false
+            }
         }
     }
 
@@ -100,6 +109,7 @@ class BluetoothService: NSObject, ObservableObject {
         rxCharacteristic = nil
         DispatchQueue.main.async {
             self.isConnected = false
+            self.isAutoConnecting = false
             self.connectedDeviceName = nil
         }
     }

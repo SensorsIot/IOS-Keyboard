@@ -15,13 +15,32 @@ struct ContentView: View {
                 if viewModel.isConnected {
                     // Main voice interface
                     VoiceInterfaceView()
+                } else if viewModel.isAutoConnecting || (viewModel.isScanning && viewModel.discoveredDevices.count <= 1) {
+                    // Auto-connecting or scanning with 0-1 devices - show simple connecting view
+                    ConnectingView()
                 } else {
-                    // Device scanner
+                    // Multiple devices found or no devices after scan - show device list
                     DeviceListView()
                 }
             }
             .navigationTitle("IOS-Keyboard")
             .navigationBarTitleDisplayMode(.inline)
+        }
+    }
+}
+
+// MARK: - Connecting View
+
+struct ConnectingView: View {
+    var body: some View {
+        VStack(spacing: 20) {
+            Spacer()
+            ProgressView()
+                .scaleEffect(2)
+            Text("Connecting...")
+                .font(.title2)
+                .foregroundColor(.secondary)
+            Spacer()
         }
     }
 }
