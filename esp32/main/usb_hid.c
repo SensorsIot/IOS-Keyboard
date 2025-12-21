@@ -28,13 +28,42 @@ static const char *hid_string_descriptor[] = {
 // Configuration descriptor length
 #define TUSB_DESC_TOTAL_LEN (TUD_CONFIG_DESC_LEN + TUD_HID_DESC_LEN)
 
-// Configuration descriptor
-static const uint8_t hid_configuration_descriptor[] = {
+// HID country codes (USB HID spec)
+#define HID_COUNTRY_US          33  // 0x21
+#define HID_COUNTRY_SWISS_DE    28  // 0x1C
+#define HID_COUNTRY_GERMAN       9  // 0x09
+#define HID_COUNTRY_FRENCH       8  // 0x08
+#define HID_COUNTRY_UK          32  // 0x20
+#define HID_COUNTRY_SPANISH     25  // 0x19
+#define HID_COUNTRY_ITALIAN     14  // 0x0E
+
+// Offset of country code byte in configuration descriptor
+// Config(9) + Interface(9) + HID header(4) = byte 22
+#define HID_COUNTRY_CODE_OFFSET 22
+
+// Configuration descriptor (mutable for country code)
+static uint8_t hid_configuration_descriptor[] = {
     // Config: config number, interface count, string index, total length, attributes, power in mA
     TUD_CONFIG_DESCRIPTOR(1, 1, 0, TUSB_DESC_TOTAL_LEN, TUSB_DESC_CONFIG_ATT_REMOTE_WAKEUP, 100),
     // HID: interface number, string index, boot protocol, report descriptor len, EP In address, size, polling interval
     TUD_HID_DESCRIPTOR(0, 4, HID_ITF_PROTOCOL_KEYBOARD, sizeof(hid_report_descriptor), 0x81, 16, 10),
 };
+
+// Get HID country code for current keyboard layout
+static uint8_t get_hid_country_code(void)
+{
+    keyboard_layout_t layout = keyboard_layout_get();
+    switch (layout) {
+        case LAYOUT_US:    return HID_COUNTRY_US;
+        case LAYOUT_CH_DE: return HID_COUNTRY_SWISS_DE;
+        case LAYOUT_DE:    return HID_COUNTRY_GERMAN;
+        case LAYOUT_FR:    return HID_COUNTRY_FRENCH;
+        case LAYOUT_UK:    return HID_COUNTRY_UK;
+        case LAYOUT_ES:    return HID_COUNTRY_SPANISH;
+        case LAYOUT_IT:    return HID_COUNTRY_ITALIAN;
+        default:           return HID_COUNTRY_US;
+    }
+}
 
 // USB device ready flag
 static bool s_usb_ready = false;
@@ -107,6 +136,11 @@ void tud_umount_cb(void)
 esp_err_t usb_hid_init(void)
 {
     ESP_LOGI(TAG, "Initializing USB HID keyboard");
+
+    // Set HID country code based on current keyboard layout
+    uint8_t country_code = get_hid_country_code();
+    hid_configuration_descriptor[HID_COUNTRY_CODE_OFFSET] = country_code;
+    ESP_LOGI(TAG, "HID country code: %d", country_code);
 
     const tinyusb_config_t tusb_cfg = {
         .device_descriptor = NULL,  // Use default from Kconfig
