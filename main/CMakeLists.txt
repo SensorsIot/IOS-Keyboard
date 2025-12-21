@@ -6,6 +6,7 @@ set(SRCS
     "ota_handler.c"
     "usb_hid.c"
     "command_parser.c"
+    "ble_gatt.c"
 )
 
 set(REQUIRES
@@ -18,13 +19,8 @@ set(REQUIRES
     esp_timer
     esp_app_format
     app_update
+    bt
 )
-
-# Add BLE sources only when BT is enabled
-if(CONFIG_BT_ENABLED)
-    list(APPEND SRCS "ble_gatt.c")
-    list(APPEND REQUIRES bt)
-endif()
 
 idf_component_register(
     SRCS ${SRCS}

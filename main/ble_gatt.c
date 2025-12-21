@@ -1,5 +1,8 @@
 #include "ble_gatt.h"
 #include "config.h"
+#include "sdkconfig.h"
+
+#if CONFIG_BT_ENABLED
 
 #include <string.h>
 #include "freertos/FreeRTOS.h"
@@ -348,3 +351,5 @@ esp_err_t ble_gatt_send(const uint8_t *data, size_t len)
 
     return ESP_OK;
 }
+
+#endif // CONFIG_BT_ENABLED

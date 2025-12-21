@@ -3,7 +3,7 @@
 
 // Application version (can be overridden via build flags)
 #ifndef CONFIG_APP_VERSION
-#define CONFIG_APP_VERSION "2.6.0"
+#define CONFIG_APP_VERSION "2.7.0"
 #endif
 
 // Access Point configuration for captive portal
@@ -56,7 +56,7 @@
 #define CONFIG_ENABLE_OTA 1
 #define CONFIG_ENABLE_CAPTIVE_PORTAL 1
 #define CONFIG_ENABLE_DEBUG_SERVER 1
-#define CONFIG_ENABLE_BLE 0  // BLE disabled - fix build first
+#define CONFIG_ENABLE_BLE 1  // BLE enabled
 
 // BLE Configuration
 #define CONFIG_BLE_DEVICE_NAME "IOS-Keyboard"

@@ -1,8 +1,8 @@
 # IOS-Keyboard Functional Specification Document
 
-**Version:** 1.4
+**Version:** 1.5
 **Date:** 2025-12-21
-**Status:** Phase 2 In Progress - HID Working, BLE Next
+**Status:** Phase 3 Complete - HID + BLE Working
 
 ---
 
@@ -309,3 +309,4 @@ IOS-Keyboard/
 | 1.2 | 2025-12-21 | - | Phase 1 complete: OTA tested, updated to ESP-IDF native build |
 | 1.3 | 2025-12-21 | - | Merged BLE GATT interface from esp32_functional_description.md; added command protocol, NUS service spec; updated architecture for ESP32-C3/S3 |
 | 1.4 | 2025-12-21 | - | Phase 2 HID working: USB keyboard types via /type endpoint; fixed TinyUSB configuration; BLE pending |
+| 1.5 | 2025-12-21 | - | Phase 3 complete: BLE GATT with NimBLE working; Nordic UART Service for iOS app; command protocol (backspace/insert/enter) functional |

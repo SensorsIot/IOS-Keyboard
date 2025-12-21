@@ -37,9 +37,9 @@ Critical order for debugging to work:
 
 ## Current Status
 
-- v2.6.0: HID working via /type endpoint
-- BLE: Disabled (CONFIG_BT_ENABLED CMake integration pending)
-- Next: Enable BLE
+- v2.7.0: HID + BLE working
+- BLE advertises as "IOS-Keyboard" with Nordic UART Service
+- Commands via BLE: `0x02`+text (type), `0x01`+count (backspace), `0x03` (enter)
 
 ## OTA Testing
 

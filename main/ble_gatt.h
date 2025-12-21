@@ -2,6 +2,7 @@
 #define BLE_GATT_H
 
 #include "esp_err.h"
+#include "sdkconfig.h"
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -19,6 +20,8 @@ typedef enum {
  * Callback type for received data on RX characteristic
  */
 typedef void (*ble_gatt_rx_callback_t)(const uint8_t *data, size_t len);
+
+#if CONFIG_BT_ENABLED
 
 /**
  * Initialize BLE GATT server with Nordic UART Service
@@ -58,5 +61,17 @@ void ble_gatt_set_rx_callback(ble_gatt_rx_callback_t callback);
  * @return ESP_OK on success
  */
 esp_err_t ble_gatt_send(const uint8_t *data, size_t len);
+
+#else // CONFIG_BT_ENABLED not set - stub functions
+
+static inline esp_err_t ble_gatt_init(void) { return ESP_ERR_NOT_SUPPORTED; }
+static inline esp_err_t ble_gatt_start(void) { return ESP_ERR_NOT_SUPPORTED; }
+static inline esp_err_t ble_gatt_stop(void) { return ESP_ERR_NOT_SUPPORTED; }
+static inline bool ble_gatt_is_connected(void) { return false; }
+static inline ble_gatt_state_t ble_gatt_get_state(void) { return BLE_STATE_IDLE; }
+static inline void ble_gatt_set_rx_callback(ble_gatt_rx_callback_t callback) { (void)callback; }
+static inline esp_err_t ble_gatt_send(const uint8_t *data, size_t len) { (void)data; (void)len; return ESP_ERR_NOT_SUPPORTED; }
+
+#endif // CONFIG_BT_ENABLED
 
 #endif // BLE_GATT_H
