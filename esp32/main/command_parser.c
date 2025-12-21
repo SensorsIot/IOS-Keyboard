@@ -71,6 +71,21 @@ void command_parser_process(const uint8_t *data, size_t len)
             break;
         }
 
+        case CMD_CTRL_KEY: {
+            // 0x04 <key> - send Ctrl+key combo
+            if (len < 2) {
+                ESP_LOGW(TAG, "Ctrl+key command missing key");
+                return;
+            }
+            char key = (char)data[1];
+            ESP_LOGI(TAG, "Ctrl+%c", key);
+            esp_err_t ret = usb_hid_send_ctrl_key(key);
+            if (ret != ESP_OK) {
+                ESP_LOGE(TAG, "Failed to send Ctrl+%c: %s", key, esp_err_to_name(ret));
+            }
+            break;
+        }
+
         default:
             ESP_LOGW(TAG, "Unknown command: 0x%02x", cmd);
             break;

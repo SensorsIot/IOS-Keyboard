@@ -18,6 +18,7 @@ esp_err_t command_parser_init(void);
  * - 0x01 <count>  : Send <count> backspace keystrokes
  * - 0x02 <text>   : Type the text characters
  * - 0x03          : Send enter key
+ * - 0x04 <key>    : Send Ctrl+key combo (e.g., 0x04 0x4A for Ctrl+J)
  *
  * @param data Pointer to received data
  * @param len Length of received data

@@ -35,4 +35,10 @@ esp_err_t usb_hid_send_backspace(void);
  */
 esp_err_t usb_hid_send_enter(void);
 
+/**
+ * Send Ctrl+key combo
+ * @param key ASCII character (e.g., 'J' for Ctrl+J)
+ */
+esp_err_t usb_hid_send_ctrl_key(char key);
+
 #endif // USB_HID_H

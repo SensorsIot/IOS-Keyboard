@@ -1,8 +1,8 @@
 # IOS-Keyboard Functional Specification Document
 
-**Version:** 1.6
+**Version:** 1.7
 **Date:** 2025-12-21
-**Status:** Phase 4 Complete - Keyboard Layouts
+**Status:** Phase 5 Complete - iOS App with Magic Words
 
 ---
 
@@ -136,7 +136,23 @@ This document specifies the functional requirements for an ESP32-C3 based USB ke
 | FR-BLE-05 | Command `0x01 <count>` shall send `<count>` backspace keystrokes | Must |
 | FR-BLE-06 | Command `0x02 <text>` shall type the text characters via HID | Must |
 | FR-BLE-07 | Command `0x03` shall send Enter key | Must |
-| FR-BLE-08 | Device shall handle malformed packets gracefully | Should |
+| FR-BLE-08 | Command `0x04 <key>` shall send Ctrl+key combo (e.g., Ctrl+J) | Must |
+| FR-BLE-09 | Device shall handle malformed packets gracefully | Should |
+
+### 3.8 iOS App Requirements
+
+| ID | Requirement | Priority |
+|----|-------------|----------|
+| FR-IOS-01 | App shall scan for BLE devices advertising NUS service or named "IOS-Keyboard" | Must |
+| FR-IOS-02 | App shall auto-connect if only one IOS-Keyboard device is found | Must |
+| FR-IOS-03 | App shall auto-reconnect if connection is lost | Must |
+| FR-IOS-04 | App shall prevent screen from sleeping while active | Must |
+| FR-IOS-05 | App shall use speech recognition to convert voice to text | Must |
+| FR-IOS-06 | App shall compute minimal text diffs and send only changes via BLE | Must |
+| FR-IOS-07 | App shall clear display when recording stops (without deleting text on target) | Must |
+| FR-IOS-08 | App shall support magic words that trigger special key combinations | Must |
+| FR-IOS-09 | Magic word "Abrahadabra" shall send Ctrl+J (newline in Claude prompt) | Must |
+| FR-IOS-10 | App shall display recognized and transmitted text in real-time | Should |
 
 ---
 
@@ -241,11 +257,13 @@ The ESP32 acts as a BLE peripheral exposing a Nordic UART Service (NUS) compatib
 | `0x01` | `<count>` | Send `count` backspace keystrokes |
 | `0x02` | `<text>` | Type ASCII/UTF-8 text characters |
 | `0x03` | (none) | Send Enter key |
+| `0x04` | `<key>` | Send Ctrl+key combo (ASCII value of key) |
 
 **Example Packets:**
 - `01 05` → Send 5 backspaces
 - `02 48 65 6C 6C 6F` → Type "Hello"
 - `03` → Send Enter
+- `04 4A` → Send Ctrl+J (newline in Claude prompt)
 
 ---
 
@@ -272,25 +290,41 @@ The ESP32 acts as a BLE peripheral exposing a Nordic UART Service (NUS) compatib
 
 ```
 IOS-Keyboard/
-├── CMakeLists.txt          # Project CMake configuration
-├── CLAUDE.md               # Claude Code guidance
 ├── Documentation/
-│   └── IOS-Keyboard-fsd.md # This document
-├── main/
-│   ├── CMakeLists.txt      # Component CMake
-│   ├── idf_component.yml   # Component dependencies (mdns, cjson, bt)
-│   ├── config.h            # Configuration defines and feature flags
-│   ├── main.c              # Application entry point, state machine
-│   ├── wifi_manager.c/h    # WiFi AP/STA mode, NVS credentials
-│   ├── captive_portal.c/h  # AP mode web server
-│   ├── debug_server.c/h    # STA mode debug web server
-│   ├── ota_handler.c/h     # HTTP OTA with rollback
-│   ├── ble_gatt.c/h        # BLE peripheral, NUS service (Phase 2)
-│   ├── command_parser.c/h  # Parse binary command packets (Phase 2)
-│   ├── usb_hid.c/h         # USB HID keyboard functions (Phase 2)
-│   └── keyboard_layout.c/h # Multi-keyboard layout support (Phase 4)
-├── partitions.csv          # Custom partition table for OTA
-└── sdkconfig.defaults      # Default Kconfig settings
+│   └── IOS-Keyboard-fsd.md     # This document
+├── esp32/                       # ESP32 firmware
+│   ├── CMakeLists.txt          # Project CMake configuration
+│   ├── CLAUDE.md               # Claude Code guidance
+│   ├── main/
+│   │   ├── CMakeLists.txt      # Component CMake
+│   │   ├── idf_component.yml   # Component dependencies (mdns, cjson, bt)
+│   │   ├── config.h            # Configuration defines and feature flags
+│   │   ├── main.c              # Application entry point, state machine
+│   │   ├── wifi_manager.c/h    # WiFi AP/STA mode, NVS credentials
+│   │   ├── captive_portal.c/h  # AP mode web server
+│   │   ├── debug_server.c/h    # STA mode debug web server
+│   │   ├── ota_handler.c/h     # HTTP OTA with rollback
+│   │   ├── ble_gatt.c/h        # BLE peripheral, NUS service
+│   │   ├── command_parser.c/h  # Parse binary command packets
+│   │   ├── usb_hid.c/h         # USB HID keyboard functions
+│   │   └── keyboard_layout.c/h # Multi-keyboard layout support
+│   ├── partitions.csv          # Custom partition table for OTA
+│   └── sdkconfig.defaults      # Default Kconfig settings
+└── ios/                         # iOS App
+    ├── IOS-Keyboard-App.xcodeproj/
+    └── IOS-Keyboard-App/
+        ├── IOS_Keyboard_AppApp.swift   # App entry, idle timer disabled
+        ├── ContentView.swift           # Main UI with voice interface
+        ├── Info.plist                  # BLE, microphone, speech permissions
+        ├── Assets.xcassets/            # App icons and assets
+        ├── Services/
+        │   ├── BluetoothService.swift  # BLE scanning, auto-connect/reconnect
+        │   ├── SpeechRecognitionService.swift  # Voice-to-text
+        │   └── TextDiffService.swift   # Minimal diff computation
+        ├── ViewModels/
+        │   └── MainViewModel.swift     # App logic, magic word handling
+        └── Views/
+            └── DeviceListView.swift    # BLE device list UI
 ```
 
 ---
@@ -317,3 +351,4 @@ IOS-Keyboard/
 | 1.4 | 2025-12-21 | - | Phase 2 HID working: USB keyboard types via /type endpoint; fixed TinyUSB configuration; BLE pending |
 | 1.5 | 2025-12-21 | - | Phase 3 complete: BLE GATT with NimBLE working; Nordic UART Service for iOS app; command protocol (backspace/insert/enter) functional |
 | 1.6 | 2025-12-21 | - | Phase 4 complete: Multi-keyboard layout support (US, Swiss German, German, French, UK, Spanish, Italian); layout persists to NVS; selectable via web UI dropdown |
+| 1.7 | 2025-12-21 | - | Phase 5 complete: iOS app with Xcode project; auto-scan/connect/reconnect; screen stays on; magic word "Abrahadabra" sends Ctrl+J; clear display on stop; added Ctrl+key command (0x04) |

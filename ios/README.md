@@ -10,11 +10,16 @@ Speak into your iPhone, and your words appear on the connected computer.
 - Real-time text streaming via BLE to ESP32
 - Smart diff algorithm - only sends changes, not full text
 - Dual display: "Recognized" vs "Transmitted" text comparison
+- Auto-scan on startup, auto-connect if single device found
+- Auto-reconnect when connection is lost
+- Screen stays on (prevents sleep/screensaver)
+- Magic words for special key combinations (e.g., "Abrahadabra" → Ctrl+J)
+- Clear display on stop (without deleting typed text on target)
 - iPhone and iPad support
 
 ## Requirements
 
-- iOS 15.0+
+- iOS 17.0+
 - iPhone/iPad with Bluetooth 4.0+
 - Xcode 15+
 
@@ -52,9 +57,16 @@ Communicates with ESP32 using Nordic UART Service (NUS):
 
 | Command | Format | Description |
 |---------|--------|-------------|
-| Insert | `0x02` + text | Type text characters |
 | Backspace | `0x01` + count | Send N backspaces |
+| Insert | `0x02` + text | Type text characters |
 | Enter | `0x03` | Send Enter key |
+| Ctrl+Key | `0x04` + key | Send Ctrl+key combo |
+
+## Magic Words
+
+| Word | Action | Use Case |
+|------|--------|----------|
+| "Abrahadabra" | Ctrl+J | New line in Claude prompt |
 
 ### Service UUIDs
 
@@ -106,8 +118,9 @@ ios/
 
 1. Power on the ESP32-S3 keyboard device
 2. Connect ESP32 to a computer via USB
-3. Open the iOS app
-4. Tap "Scan" and select "IOS-Keyboard"
+3. Open the iOS app (auto-scans for devices)
+4. If only one device found, it auto-connects; otherwise select "IOS-Keyboard"
 5. Tap the microphone button to start recording
 6. Speak - your words will be typed on the computer
-7. Tap stop when done
+7. Say "Abrahadabra" to insert a new line (Ctrl+J for Claude)
+8. Tap stop when done (display clears, typed text remains on target)

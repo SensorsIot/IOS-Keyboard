@@ -46,21 +46,33 @@ idf.py flash
 
 | Byte 0 | Payload | Action |
 |--------|---------|--------|
-| `0x02` | UTF-8 text | Type text |
 | `0x01` | count (1 byte) | Backspace N times |
+| `0x02` | UTF-8 text | Type text |
 | `0x03` | - | Enter key |
+| `0x04` | key (ASCII) | Ctrl+key combo (e.g., Ctrl+J) |
+
+## Magic Words
+
+Say these words to trigger special actions:
+
+| Word | Action | Use Case |
+|------|--------|----------|
+| "Abrahadabra" | Ctrl+J | New line in Claude prompt |
 
 ## Current Status
 
-- **v2.8.0** - ESP32: WiFi + USB HID + BLE + Keyboard Layouts
-- Keyboard layout selectable via web UI (US, Swiss German, German, French, UK, Spanish, Italian)
-- iOS app: Voice recognition + BLE - ready for testing
+- **v2.9.0** - Full system working
+- ESP32: WiFi + USB HID + BLE + Keyboard Layouts + Ctrl+key support
+- iOS app: Auto-scan, auto-connect, auto-reconnect, screen stays on, magic words
 
-## TODO
+## Features
 
 - [x] Swiss German keyboard layout support on ESP32
-- [ ] iOS app testing and refinement
-- [ ] Auto-reconnect on BLE disconnect
+- [x] Auto-scan and auto-connect (single device)
+- [x] Auto-reconnect on BLE disconnect
+- [x] Screen stays on (prevents sleep)
+- [x] Magic word "Abrahadabra" for Ctrl+J (new line in Claude)
+- [x] Clear display on stop (without deleting typed text)
 
 ## License
 

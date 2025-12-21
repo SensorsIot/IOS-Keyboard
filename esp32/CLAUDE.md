@@ -38,11 +38,10 @@ Critical order for debugging to work:
 
 ## Current Status
 
-- v2.8.0: HID + BLE + Keyboard Layouts
-- BLE advertises as "IOS-Keyboard" with Nordic UART Service
-- Commands via BLE: `0x02`+text (type), `0x01`+count (backspace), `0x03` (enter)
-- Keyboard layout selectable via web UI dropdown (persists to NVS)
-- API: `GET /keyboard` (list layouts), `POST /keyboard {"layout":"ch-de"}` (set layout)
+- v2.9.0: HID + BLE + Keyboard Layouts + Ctrl+key
+- See `Documentation/IOS-Keyboard-fsd.md` for full functional specification
+
+**Note:** All functionality (commands, protocols, features) must be documented in the FSD, not in this file. This file is only for build/development guidance.
 
 ## OTA Testing
 

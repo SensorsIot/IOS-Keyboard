@@ -70,5 +70,6 @@
 #define CMD_BACKSPACE 0x01  // 0x01 <count> - send backspace count times
 #define CMD_INSERT    0x02  // 0x02 <text>  - type text characters
 #define CMD_ENTER     0x03  // 0x03         - send enter key
+#define CMD_CTRL_KEY  0x04  // 0x04 <key>   - send Ctrl+key combo
 
 #endif // CONFIG_H

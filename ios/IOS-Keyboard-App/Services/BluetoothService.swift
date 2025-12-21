@@ -13,6 +13,7 @@ struct Commands {
     static let backspace: UInt8 = 0x01
     static let insert: UInt8 = 0x02
     static let enter: UInt8 = 0x03
+    static let ctrlKey: UInt8 = 0x04  // Ctrl + key combo
 }
 
 class BluetoothService: NSObject, ObservableObject {
@@ -25,8 +26,12 @@ class BluetoothService: NSObject, ObservableObject {
     // MARK: - Private Properties
     private var centralManager: CBCentralManager!
     private var connectedPeripheral: CBPeripheral?
+    private var lastConnectedPeripheralIdentifier: UUID?
     private var rxCharacteristic: CBCharacteristic?
     private var mtu: Int = 20  // Default BLE MTU, will be updated after connection
+    private var autoConnectTimer: Timer?
+    private var scanTimeoutTimer: Timer?
+    private var shouldAutoReconnect = true
 
     // MARK: - Init
 
@@ -41,14 +46,30 @@ class BluetoothService: NSObject, ObservableObject {
         guard centralManager.state == .poweredOn else { return }
         discoveredDevices.removeAll()
         isScanning = true
-        // Scan for devices advertising NUS service
-        centralManager.scanForPeripherals(withServices: [NUSUUIDs.service], options: nil)
 
-        // Also scan for all devices to find IOS-Keyboard by name
+        // Scan for all devices to find IOS-Keyboard by name
         centralManager.scanForPeripherals(withServices: nil, options: [CBCentralManagerScanOptionAllowDuplicatesKey: false])
+
+        // Auto-connect after 2 seconds if only one device found
+        scanTimeoutTimer?.invalidate()
+        scanTimeoutTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: false) { [weak self] _ in
+            self?.checkAutoConnect()
+        }
+    }
+
+    private func checkAutoConnect() {
+        guard isScanning, !isConnected else { return }
+
+        if discoveredDevices.count == 1 {
+            // Only one device found, auto-connect
+            print("BLE: Auto-connecting to single device")
+            connect(to: discoveredDevices[0])
+        }
     }
 
     func stopScanning() {
+        scanTimeoutTimer?.invalidate()
+        scanTimeoutTimer = nil
         centralManager.stopScan()
         isScanning = false
     }
@@ -57,12 +78,17 @@ class BluetoothService: NSObject, ObservableObject {
 
     func connect(to peripheral: CBPeripheral) {
         stopScanning()
+        shouldAutoReconnect = true
         connectedPeripheral = peripheral
+        lastConnectedPeripheralIdentifier = peripheral.identifier
         peripheral.delegate = self
         centralManager.connect(peripheral, options: nil)
     }
 
     func disconnect() {
+        shouldAutoReconnect = false
+        autoConnectTimer?.invalidate()
+        autoConnectTimer = nil
         if let peripheral = connectedPeripheral {
             centralManager.cancelPeripheralConnection(peripheral)
         }
@@ -72,8 +98,17 @@ class BluetoothService: NSObject, ObservableObject {
     private func cleanup() {
         connectedPeripheral = nil
         rxCharacteristic = nil
-        isConnected = false
-        connectedDeviceName = nil
+        DispatchQueue.main.async {
+            self.isConnected = false
+            self.connectedDeviceName = nil
+        }
+    }
+
+    private func attemptReconnect() {
+        guard shouldAutoReconnect, centralManager.state == .poweredOn else { return }
+
+        print("BLE: Attempting to reconnect...")
+        startScanning()
     }
 
     // MARK: - Command Sending
@@ -110,6 +145,13 @@ class BluetoothService: NSObject, ObservableObject {
         sendCommand(command)
     }
 
+    /// Send Ctrl + key combo (e.g., Ctrl+J for newline in Claude)
+    func sendCtrlKey(_ key: Character) {
+        guard let ascii = key.asciiValue else { return }
+        let command = Data([Commands.ctrlKey, ascii])
+        sendCommand(command)
+    }
+
     private func sendCommand(_ data: Data) {
         guard let peripheral = connectedPeripheral,
               let characteristic = rxCharacteristic else {
@@ -128,6 +170,8 @@ extension BluetoothService: CBCentralManagerDelegate {
         switch central.state {
         case .poweredOn:
             print("BLE: Powered on")
+            // Auto-start scanning when Bluetooth is ready
+            startScanning()
         case .poweredOff:
             print("BLE: Powered off")
             cleanup()
@@ -151,6 +195,12 @@ extension BluetoothService: CBCentralManagerDelegate {
                 DispatchQueue.main.async {
                     self.discoveredDevices.append(peripheral)
                 }
+
+                // If this is the previously connected device, reconnect immediately
+                if peripheral.identifier == self.lastConnectedPeripheralIdentifier && self.shouldAutoReconnect {
+                    print("BLE: Found previously connected device, reconnecting...")
+                    self.connect(to: peripheral)
+                }
             }
         }
     }
@@ -167,11 +217,27 @@ extension BluetoothService: CBCentralManagerDelegate {
     func centralManager(_ central: CBCentralManager, didFailToConnect peripheral: CBPeripheral, error: Error?) {
         print("BLE: Failed to connect: \(error?.localizedDescription ?? "Unknown error")")
         cleanup()
+
+        // Retry after a delay
+        if shouldAutoReconnect {
+            autoConnectTimer?.invalidate()
+            autoConnectTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: false) { [weak self] _ in
+                self?.attemptReconnect()
+            }
+        }
     }
 
     func centralManager(_ central: CBCentralManager, didDisconnectPeripheral peripheral: CBPeripheral, error: Error?) {
         print("BLE: Disconnected: \(error?.localizedDescription ?? "No error")")
         cleanup()
+
+        // Auto-reconnect after a delay if not manually disconnected
+        if shouldAutoReconnect {
+            autoConnectTimer?.invalidate()
+            autoConnectTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: false) { [weak self] _ in
+                self?.attemptReconnect()
+            }
+        }
     }
 }
 

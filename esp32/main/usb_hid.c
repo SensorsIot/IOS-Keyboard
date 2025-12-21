@@ -222,3 +222,24 @@ esp_err_t usb_hid_send_enter(void)
     }
     return send_key(HID_KEY_ENTER, 0);
 }
+
+esp_err_t usb_hid_send_ctrl_key(char key)
+{
+    if (!s_usb_ready) {
+        return ESP_ERR_INVALID_STATE;
+    }
+
+    // Convert ASCII letter to HID keycode
+    uint8_t keycode = 0;
+    if (key >= 'A' && key <= 'Z') {
+        keycode = HID_KEY_A + (key - 'A');
+    } else if (key >= 'a' && key <= 'z') {
+        keycode = HID_KEY_A + (key - 'a');
+    } else {
+        ESP_LOGW(TAG, "Unsupported Ctrl+key: %c", key);
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    // Send with Left Ctrl modifier
+    return send_key(keycode, KEYBOARD_MODIFIER_LEFTCTRL);
+}

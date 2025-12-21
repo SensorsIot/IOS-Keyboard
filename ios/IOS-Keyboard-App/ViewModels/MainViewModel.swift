@@ -108,18 +108,32 @@ class MainViewModel: ObservableObject {
     func stopRecording() {
         speechService.stopRecognition()
 
+        // Clear display and reset for next recording (doesn't delete text on target)
+        recognizedText = ""
+        transmittedText = ""
+        diffService.reset()
+
         // Optionally send Enter when stopping
         // bluetoothService.sendEnter()
     }
 
     // MARK: - Transcript Handling
 
+    /// Magic word to trigger Ctrl+J (newline in Claude prompt)
+    private let magicWord = "Abrahadabra"
+
     private func handleTranscriptUpdate(_ newText: String) {
+        // Ignore empty updates to avoid deleting all text when recording stops
+        guard !newText.isEmpty else { return }
+
+        // Check for magic word and replace with Ctrl+J
+        let processedText = processMagicWords(newText)
+
         // Update recognized text display
         recognizedText = newText
 
         // Compute diff and send to BLE
-        let diff = diffService.computeDiff(newText: newText)
+        let diff = diffService.computeDiff(newText: processedText)
 
         // Send backspaces if needed
         if diff.backspaces > 0 {
@@ -128,10 +142,34 @@ class MainViewModel: ObservableObject {
 
         // Send new text if any
         if !diff.insert.isEmpty {
-            bluetoothService.sendText(diff.insert)
+            sendTextWithMagicWords(diff.insert)
         }
 
         // Update transmitted text (what the computer should now have)
-        transmittedText = newText
+        transmittedText = processedText
+    }
+
+    /// Replace magic word with a placeholder for diff calculation
+    private func processMagicWords(_ text: String) -> String {
+        // Replace "Abrahadabra" with newline character for diff tracking
+        return text.replacingOccurrences(of: magicWord, with: "\n", options: .caseInsensitive)
+    }
+
+    /// Send text, replacing magic word occurrences with Ctrl+J
+    private func sendTextWithMagicWords(_ text: String) {
+        // Split by magic word (case insensitive)
+        let parts = text.components(separatedBy: "\n")
+
+        for (index, part) in parts.enumerated() {
+            // Send the text part
+            if !part.isEmpty {
+                bluetoothService.sendText(part)
+            }
+
+            // Send Ctrl+J between parts (not after the last one)
+            if index < parts.count - 1 {
+                bluetoothService.sendCtrlKey("J")
+            }
+        }
     }
 }
