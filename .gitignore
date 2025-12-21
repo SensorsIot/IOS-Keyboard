@@ -1,10 +1,14 @@
-# ESP-IDF Build
-build/
-sdkconfig
-sdkconfig.old
+# ESP32 Build
+esp32/build/
+esp32/sdkconfig
+esp32/sdkconfig.old
+esp32/managed_components/
 
-# Managed components (downloaded by component manager)
-managed_components/
+# iOS Build
+ios/*.xcodeproj/project.xcworkspace/
+ios/*.xcodeproj/xcuserdata/
+ios/DerivedData/
+ios/.build/
 
 # Editor/IDE
 .vscode/
