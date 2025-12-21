@@ -1,8 +1,8 @@
 # IOS-Keyboard Functional Specification Document
 
-**Version:** 1.1
+**Version:** 1.2
 **Date:** 2025-12-21
-**Status:** Draft
+**Status:** Phase 1 Complete
 
 ---
 
@@ -46,8 +46,8 @@ This document specifies the functional requirements for an ESP32-C3 based USB ke
 ```
 
 ### 2.3 Development Environment
-- **Framework:** ESP-IDF (via PlatformIO)
-- **Build System:** PlatformIO
+- **Framework:** ESP-IDF v6.1
+- **Build System:** CMake/Ninja via idf.py
 - **USB Stack:** TinyUSB (integrated with ESP-IDF)
 
 ---
@@ -227,28 +227,21 @@ Since Serial/UART is unavailable (USB used for HID), debugging is done via WiFi 
 
 ```
 IOS-Keyboard/
+├── CMakeLists.txt          # Project CMake configuration
+├── CLAUDE.md               # Claude Code guidance
 ├── Documentation/
-│   └── IOS-Keyboard-fsd.md
-├── src/
+│   └── IOS-Keyboard-fsd.md # This document
+├── main/
+│   ├── CMakeLists.txt      # Component CMake
+│   ├── idf_component.yml   # Component dependencies (mdns, cjson)
+│   ├── config.h            # Configuration defines and feature flags
 │   ├── main.c              # Application entry point
-│   ├── usb_hid.c           # USB HID keyboard implementation
-│   ├── usb_hid.h
-│   ├── wifi_manager.c      # WiFi connection handling
-│   ├── wifi_manager.h
-│   ├── captive_portal.c    # Captive portal web server
-│   ├── captive_portal.h
-│   ├── debug_server.c      # WiFi debug web server
-│   ├── debug_server.h
-│   ├── ota_handler.c       # OTA update logic
-│   └── ota_handler.h
-├── include/
-│   └── config.h            # Configuration defines
-├── data/
-│   └── www/                # Embedded HTML/CSS/JS for web interfaces
-│       ├── index.html      # Captive portal page
-│       └── debug.html      # Debug dashboard page
-├── platformio.ini          # PlatformIO configuration
-└── partitions.csv          # Custom partition table for OTA
+│   ├── wifi_manager.c/h    # WiFi AP/STA mode, NVS credentials
+│   ├── captive_portal.c/h  # AP mode web server
+│   ├── debug_server.c/h    # STA mode debug web server
+│   └── ota_handler.c/h     # HTTP OTA with rollback
+├── partitions.csv          # Custom partition table for OTA
+└── sdkconfig.defaults      # Default Kconfig settings
 ```
 
 ---
@@ -269,3 +262,5 @@ IOS-Keyboard/
 | Version | Date | Author | Changes |
 |---------|------|--------|---------|
 | 1.0 | 2025-12-21 | - | Initial draft |
+| 1.1 | 2025-12-21 | - | Added WiFi debugging requirements |
+| 1.2 | 2025-12-21 | - | Phase 1 complete: OTA tested, updated to ESP-IDF native build |
