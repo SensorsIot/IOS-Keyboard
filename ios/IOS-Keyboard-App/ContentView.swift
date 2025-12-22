@@ -4,28 +4,55 @@ struct ContentView: View {
     @EnvironmentObject var viewModel: MainViewModel
 
     var body: some View {
-        NavigationStack {
-            VStack(spacing: 0) {
-                // Connection status bar
-                ConnectionStatusBar(
-                    isConnected: viewModel.isConnected,
-                    deviceName: viewModel.connectedDeviceName
-                )
+        ZStack {
+            // Main content
+            NavigationStack {
+                VStack(spacing: 0) {
+                    // Connection status bar
+                    ConnectionStatusBar(
+                        isConnected: viewModel.isConnected,
+                        deviceName: viewModel.connectedDeviceName
+                    )
 
-                if viewModel.isConnected {
-                    // Main voice interface
-                    VoiceInterfaceView()
-                } else if viewModel.isAutoConnecting || (viewModel.isScanning && viewModel.discoveredDevices.count <= 1) {
-                    // Auto-connecting or scanning with 0-1 devices - show simple connecting view
-                    ConnectingView()
-                } else {
-                    // Multiple devices found or no devices after scan - show device list
-                    DeviceListView()
+                    if viewModel.isConnected {
+                        // Main voice interface
+                        VoiceInterfaceView()
+                    } else if viewModel.isAutoConnecting || (viewModel.isScanning && viewModel.discoveredDevices.count <= 1) {
+                        // Auto-connecting or scanning with 0-1 devices - show simple connecting view
+                        ConnectingView()
+                    } else {
+                        // Multiple devices found or no devices after scan - show device list
+                        DeviceListView()
+                    }
                 }
+                .navigationTitle("IOS-Keyboard")
+                .navigationBarTitleDisplayMode(.inline)
             }
-            .navigationTitle("IOS-Keyboard")
-            .navigationBarTitleDisplayMode(.inline)
+
+            // Black screen overlay for IDLE_DIMMED state
+            if viewModel.powerState == .idleDimmed {
+                IdleDimmedOverlay()
+            }
         }
+    }
+}
+
+// MARK: - Idle Dimmed Overlay
+
+struct IdleDimmedOverlay: View {
+    var body: some View {
+        Color.black
+            .ignoresSafeArea()
+            .overlay(
+                VStack(spacing: 20) {
+                    Image(systemName: "moon.zzz.fill")
+                        .font(.system(size: 48))
+                        .foregroundColor(.gray.opacity(0.3))
+                    Text("Listening for wake tone...")
+                        .font(.caption)
+                        .foregroundColor(.gray.opacity(0.3))
+                }
+            )
     }
 }
 
@@ -72,6 +99,11 @@ struct VoiceInterfaceView: View {
 
     var body: some View {
         VStack(spacing: 16) {
+            // Power state indicator
+            if viewModel.isRecording {
+                PowerStateIndicator(state: viewModel.powerState)
+            }
+
             // Recognized text (what speech recognition heard)
             TextDisplayCard(
                 title: "Recognized",
@@ -108,6 +140,47 @@ struct VoiceInterfaceView: View {
             .padding(.bottom)
         }
         .padding()
+    }
+}
+
+// MARK: - Power State Indicator
+
+struct PowerStateIndicator: View {
+    let state: PowerState
+
+    var body: some View {
+        HStack {
+            Circle()
+                .fill(stateColor)
+                .frame(width: 8, height: 8)
+            Text(stateText)
+                .font(.caption)
+                .foregroundColor(.secondary)
+            Spacer()
+        }
+        .padding(.horizontal)
+    }
+
+    private var stateColor: Color {
+        switch state {
+        case .activeListening:
+            return .green
+        case .idleDimmed:
+            return .orange
+        case .wakeTransition:
+            return .yellow
+        }
+    }
+
+    private var stateText: String {
+        switch state {
+        case .activeListening:
+            return "Listening..."
+        case .idleDimmed:
+            return "Idle (dimmed)"
+        case .wakeTransition:
+            return "Waking up..."
+        }
     }
 }
 

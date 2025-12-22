@@ -1,6 +1,15 @@
 import Foundation
 import CoreBluetooth
 import Combine
+import UIKit
+
+// MARK: - Power State
+
+enum PowerState {
+    case activeListening
+    case idleDimmed
+    case wakeTransition
+}
 
 @MainActor
 class MainViewModel: ObservableObject {
@@ -8,6 +17,7 @@ class MainViewModel: ObservableObject {
     private let bluetoothService = BluetoothService()
     private let speechService = SpeechRecognitionService()
     private let diffService = TextDiffService()
+    private let toneDetector = ToneDetectorService()
 
     private var cancellables = Set<AnyCancellable>()
 
@@ -26,10 +36,21 @@ class MainViewModel: ObservableObject {
     @Published var transmittedText = ""
     private var isStopping = false  // Flag to ignore updates during stop
 
+    // Power Management
+    @Published var powerState: PowerState = .activeListening
+    private var lastActivityTime = Date()
+    private var silenceTimer: Timer?
+    private var savedBrightness: CGFloat = 1.0
+
+    // Configuration
+    private let endOfSpeechTimeout: TimeInterval = 5.0  // seconds of silence before dimming
+    private let dimmedBrightness: CGFloat = 0.05
+
     // MARK: - Init
 
     init() {
         setupBindings()
+        setupIdleTimerDisabled()
     }
 
     private func setupBindings() {
@@ -78,6 +99,11 @@ class MainViewModel: ObservableObject {
             .store(in: &cancellables)
     }
 
+    private func setupIdleTimerDisabled() {
+        // Keep the screen on
+        UIApplication.shared.isIdleTimerDisabled = true
+    }
+
     // MARK: - BLE Actions
 
     func startScanning() {
@@ -94,6 +120,7 @@ class MainViewModel: ObservableObject {
 
     func disconnect() {
         stopRecording()
+        transitionTo(.activeListening)  // Reset power state
         bluetoothService.disconnect()
     }
 
@@ -109,6 +136,10 @@ class MainViewModel: ObservableObject {
 
         // Start speech recognition
         speechService.startRecognition()
+
+        // Start power management
+        transitionTo(.activeListening)
+        startSilenceMonitor()
     }
 
     func stopRecording() {
@@ -116,19 +147,136 @@ class MainViewModel: ObservableObject {
         isStopping = true
 
         speechService.stopRecognition()
+        stopSilenceMonitor()
+        toneDetector.stopDetection()
 
         // Clear display and reset for next recording (doesn't delete text on target)
         recognizedText = ""
         transmittedText = ""
         diffService.reset()
 
+        // Reset power state
+        transitionTo(.activeListening)
+
         // Reset flag after a brief delay to ensure all pending updates are ignored
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
             self.isStopping = false
         }
+    }
 
-        // Optionally send Enter when stopping
-        // bluetoothService.sendEnter()
+    // MARK: - Power State Management
+
+    private func transitionTo(_ newState: PowerState) {
+        guard newState != powerState else { return }
+
+        let oldState = powerState
+        print("PowerState: \(oldState) -> \(newState)")
+
+        switch newState {
+        case .activeListening:
+            enterActiveListening(from: oldState)
+        case .idleDimmed:
+            enterIdleDimmed()
+        case .wakeTransition:
+            enterWakeTransition()
+        }
+
+        powerState = newState
+    }
+
+    private func enterActiveListening(from previousState: PowerState) {
+        // Restore brightness if coming from dimmed state
+        if previousState == .idleDimmed || previousState == .wakeTransition {
+            restoreBrightness()
+        }
+
+        // Start silence monitor
+        startSilenceMonitor()
+        lastActivityTime = Date()
+    }
+
+    private func enterIdleDimmed() {
+        // Stop speech recognition
+        speechService.stopRecognition()
+
+        // Stop silence monitor (no longer needed)
+        stopSilenceMonitor()
+
+        // Dim the display
+        saveBrightness()
+        setDimmedBrightness()
+
+        // Start tone detector for wake-up
+        toneDetector.startDetection { [weak self] in
+            self?.onToneDetected()
+        }
+
+        print("PowerState: Entered IDLE_DIMMED - listening for wake tone")
+    }
+
+    private func enterWakeTransition() {
+        // Stop tone detector
+        toneDetector.stopDetection()
+
+        // Restore brightness
+        restoreBrightness()
+
+        // Restart speech recognition
+        speechService.startRecognition()
+
+        // Transition to active listening once speech is ready
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+            self?.transitionTo(.activeListening)
+        }
+    }
+
+    // MARK: - Silence Monitor
+
+    private func startSilenceMonitor() {
+        stopSilenceMonitor()  // Clear any existing timer
+
+        silenceTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
+            Task { @MainActor in
+                self?.checkSilenceTimeout()
+            }
+        }
+    }
+
+    private func stopSilenceMonitor() {
+        silenceTimer?.invalidate()
+        silenceTimer = nil
+    }
+
+    private func checkSilenceTimeout() {
+        guard powerState == .activeListening, isRecording else { return }
+
+        let silenceDuration = Date().timeIntervalSince(lastActivityTime)
+        if silenceDuration > endOfSpeechTimeout {
+            print("PowerState: Silence timeout (\(silenceDuration)s) - transitioning to IDLE_DIMMED")
+            transitionTo(.idleDimmed)
+        }
+    }
+
+    // MARK: - Tone Detection
+
+    private func onToneDetected() {
+        guard powerState == .idleDimmed else { return }
+        print("PowerState: Wake tone detected!")
+        transitionTo(.wakeTransition)
+    }
+
+    // MARK: - Brightness Management
+
+    private func saveBrightness() {
+        savedBrightness = UIScreen.main.brightness
+    }
+
+    private func setDimmedBrightness() {
+        UIScreen.main.brightness = dimmedBrightness
+    }
+
+    private func restoreBrightness() {
+        UIScreen.main.brightness = savedBrightness
     }
 
     // MARK: - Transcript Handling
@@ -139,6 +287,9 @@ class MainViewModel: ObservableObject {
     private func handleTranscriptUpdate(_ newText: String) {
         // Ignore updates when stopping or empty
         guard !isStopping, !newText.isEmpty else { return }
+
+        // Update last activity time for silence detection
+        lastActivityTime = Date()
 
         // Check for magic word and replace with Ctrl+J
         let processedText = processMagicWords(newText)
