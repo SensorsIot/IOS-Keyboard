@@ -96,21 +96,6 @@ void app_main(void)
                 debug_server_log("HID keyboard enabled");
             }
 
-            // Wait for USB to be ready, then type hello world
-            ESP_LOGI(TAG, "Waiting for USB HID to be ready...");
-            for (int i = 0; i < 50 && !usb_hid_is_ready(); i++) {
-                vTaskDelay(pdMS_TO_TICKS(100));
-            }
-
-            if (usb_hid_is_ready()) {
-                ESP_LOGI(TAG, "Typing 'hello world'...");
-                debug_server_log("Typing hello world");
-                vTaskDelay(pdMS_TO_TICKS(1000));  // Small delay before typing
-                usb_hid_type_hello_world();
-            } else {
-                ESP_LOGW(TAG, "USB HID not ready, skipping hello world");
-                debug_server_log("USB not ready - connect to USB host");
-            }
 #else
             ESP_LOGI(TAG, "HID disabled (Phase 1 - OTA testing)");
             debug_server_log("HID disabled - Phase 1 OTA testing mode");

@@ -201,16 +201,17 @@ extension BluetoothService: CBCentralManagerDelegate {
         let hasNUS = (advertisementData[CBAdvertisementDataServiceUUIDsKey] as? [CBUUID])?.contains(NUSUUIDs.service) ?? false
 
         if name.contains("IOS-Keyboard") || hasNUS {
-            if !discoveredDevices.contains(where: { $0.identifier == peripheral.identifier }) {
-                DispatchQueue.main.async {
+            DispatchQueue.main.async {
+                // Check for duplicates inside async block to avoid race condition
+                if !self.discoveredDevices.contains(where: { $0.identifier == peripheral.identifier }) {
                     self.discoveredDevices.append(peripheral)
                 }
+            }
 
-                // If this is the previously connected device, reconnect immediately
-                if peripheral.identifier == self.lastConnectedPeripheralIdentifier && self.shouldAutoReconnect {
-                    print("BLE: Found previously connected device, reconnecting...")
-                    self.connect(to: peripheral)
-                }
+            // If this is the previously connected device, reconnect immediately
+            if peripheral.identifier == self.lastConnectedPeripheralIdentifier && self.shouldAutoReconnect {
+                print("BLE: Found previously connected device, reconnecting...")
+                self.connect(to: peripheral)
             }
         }
     }
