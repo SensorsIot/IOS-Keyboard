@@ -99,6 +99,9 @@ struct VoiceInterfaceView: View {
 
     var body: some View {
         VStack(spacing: 16) {
+            // Language selection buttons
+            LanguageSelectionBar()
+
             // Power state indicator
             if viewModel.isRecording {
                 PowerStateIndicator(state: viewModel.powerState)
@@ -106,7 +109,7 @@ struct VoiceInterfaceView: View {
 
             // Recognized text (what speech recognition heard)
             TextDisplayCard(
-                title: "Recognized",
+                title: "Recognized (\(viewModel.currentLanguageName))",
                 text: viewModel.recognizedText,
                 backgroundColor: .blue.opacity(0.1)
             )
@@ -140,6 +143,178 @@ struct VoiceInterfaceView: View {
             .padding(.bottom)
         }
         .padding()
+    }
+}
+
+// MARK: - Language Selection Bar
+
+struct LanguageSelectionBar: View {
+    @EnvironmentObject var viewModel: MainViewModel
+    @State private var showingPicker1 = false
+    @State private var showingPicker2 = false
+
+    var body: some View {
+        HStack(spacing: 12) {
+            // Language 1 Button
+            LanguageButton(
+                languageId: viewModel.language1,
+                languageName: languageName(for: viewModel.language1),
+                isActive: viewModel.activeLanguageSlot == 1,
+                onTap: { viewModel.selectLanguage1() },
+                onLongPress: { showingPicker1 = true }
+            )
+
+            // Language 2 Button
+            LanguageButton(
+                languageId: viewModel.language2,
+                languageName: languageName(for: viewModel.language2),
+                isActive: viewModel.activeLanguageSlot == 2,
+                onTap: { viewModel.selectLanguage2() },
+                onLongPress: { showingPicker2 = true }
+            )
+        }
+        .sheet(isPresented: $showingPicker1) {
+            LanguagePickerSheet(
+                title: "Language 1",
+                selectedLanguage: $viewModel.language1,
+                availableLanguages: viewModel.availableLanguages
+            )
+        }
+        .sheet(isPresented: $showingPicker2) {
+            LanguagePickerSheet(
+                title: "Language 2",
+                selectedLanguage: $viewModel.language2,
+                availableLanguages: viewModel.availableLanguages
+            )
+        }
+    }
+
+    private func languageName(for id: String) -> String {
+        viewModel.availableLanguages.first { $0.id == id }?.name ?? id
+    }
+}
+
+// MARK: - Language Button
+
+struct LanguageButton: View {
+    let languageId: String
+    let languageName: String
+    let isActive: Bool
+    let onTap: () -> Void
+    let onLongPress: () -> Void
+
+    var body: some View {
+        Button(action: onTap) {
+            VStack(spacing: 4) {
+                Text(flagEmoji(for: languageId))
+                    .font(.title)
+                Text(shortName(for: languageId))
+                    .font(.caption)
+                    .fontWeight(isActive ? .bold : .regular)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 12)
+            .background(isActive ? Color.blue.opacity(0.2) : Color(.systemGray6))
+            .cornerRadius(12)
+            .overlay(
+                RoundedRectangle(cornerRadius: 12)
+                    .stroke(isActive ? Color.blue : Color.clear, lineWidth: 2)
+            )
+        }
+        .buttonStyle(.plain)
+        .simultaneousGesture(
+            LongPressGesture(minimumDuration: 0.5)
+                .onEnded { _ in onLongPress() }
+        )
+    }
+
+    private func shortName(for id: String) -> String {
+        // Return short language name
+        switch id {
+        case "de-CH": return "DE-CH"
+        case "de-DE": return "DE"
+        case "en-US": return "EN-US"
+        case "en-GB": return "EN-GB"
+        case "fr-FR": return "FR"
+        case "fr-CH": return "FR-CH"
+        case "it-IT": return "IT"
+        case "es-ES": return "ES"
+        default: return String(id.prefix(5))
+        }
+    }
+
+    private func flagEmoji(for id: String) -> String {
+        switch id {
+        case "de-CH", "fr-CH": return "🇨🇭"
+        case "de-DE": return "🇩🇪"
+        case "en-US": return "🇺🇸"
+        case "en-GB": return "🇬🇧"
+        case "fr-FR": return "🇫🇷"
+        case "it-IT": return "🇮🇹"
+        case "es-ES": return "🇪🇸"
+        case "pt-BR": return "🇧🇷"
+        case "nl-NL": return "🇳🇱"
+        case "ja-JP": return "🇯🇵"
+        case "zh-CN": return "🇨🇳"
+        default: return "🌐"
+        }
+    }
+}
+
+// MARK: - Language Picker Sheet
+
+struct LanguagePickerSheet: View {
+    let title: String
+    @Binding var selectedLanguage: String
+    let availableLanguages: [(id: String, name: String)]
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            List {
+                ForEach(availableLanguages, id: \.id) { language in
+                    Button(action: {
+                        selectedLanguage = language.id
+                        dismiss()
+                    }) {
+                        HStack {
+                            Text(flagEmoji(for: language.id))
+                            Text(language.name)
+                            Spacer()
+                            if selectedLanguage == language.id {
+                                Image(systemName: "checkmark")
+                                    .foregroundColor(.blue)
+                            }
+                        }
+                    }
+                    .foregroundColor(.primary)
+                }
+            }
+            .navigationTitle(title)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+            }
+        }
+    }
+
+    private func flagEmoji(for id: String) -> String {
+        switch id {
+        case "de-CH", "fr-CH": return "🇨🇭"
+        case "de-DE": return "🇩🇪"
+        case "en-US": return "🇺🇸"
+        case "en-GB": return "🇬🇧"
+        case "fr-FR": return "🇫🇷"
+        case "it-IT": return "🇮🇹"
+        case "es-ES": return "🇪🇸"
+        case "pt-BR": return "🇧🇷"
+        case "nl-NL": return "🇳🇱"
+        case "ja-JP": return "🇯🇵"
+        case "zh-CN": return "🇨🇳"
+        default: return "🌐"
+        }
     }
 }
 

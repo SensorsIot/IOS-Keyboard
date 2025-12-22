@@ -11,6 +11,14 @@ enum PowerState {
     case wakeTransition
 }
 
+// MARK: - UserDefaults Keys
+
+private enum UserDefaultsKeys {
+    static let language1 = "speechLanguage1"
+    static let language2 = "speechLanguage2"
+    static let activeLanguageSlot = "activeLanguageSlot"
+}
+
 @MainActor
 class MainViewModel: ObservableObject {
     // MARK: - Services
@@ -36,6 +44,36 @@ class MainViewModel: ObservableObject {
     @Published var transmittedText = ""
     private var isStopping = false  // Flag to ignore updates during stop
 
+    // Language Selection
+    @Published var language1: String {
+        didSet { UserDefaults.standard.set(language1, forKey: UserDefaultsKeys.language1) }
+    }
+    @Published var language2: String {
+        didSet { UserDefaults.standard.set(language2, forKey: UserDefaultsKeys.language2) }
+    }
+    @Published var activeLanguageSlot: Int {  // 1 or 2
+        didSet {
+            UserDefaults.standard.set(activeLanguageSlot, forKey: UserDefaultsKeys.activeLanguageSlot)
+            applyActiveLanguage()
+        }
+    }
+
+    /// Available languages for selection
+    var availableLanguages: [(id: String, name: String)] {
+        SpeechRecognitionService.commonLocales
+    }
+
+    /// Current active language identifier
+    var currentLanguage: String {
+        activeLanguageSlot == 1 ? language1 : language2
+    }
+
+    /// Current active language display name
+    var currentLanguageName: String {
+        let id = currentLanguage
+        return availableLanguages.first { $0.id == id }?.name ?? id
+    }
+
     // Power Management
     @Published var powerState: PowerState = .activeListening
     private var lastActivityTime = Date()
@@ -49,8 +87,34 @@ class MainViewModel: ObservableObject {
     // MARK: - Init
 
     init() {
+        // Load saved languages from UserDefaults
+        self.language1 = UserDefaults.standard.string(forKey: UserDefaultsKeys.language1) ?? "de-CH"
+        self.language2 = UserDefaults.standard.string(forKey: UserDefaultsKeys.language2) ?? "en-US"
+        self.activeLanguageSlot = UserDefaults.standard.integer(forKey: UserDefaultsKeys.activeLanguageSlot)
+        if self.activeLanguageSlot == 0 { self.activeLanguageSlot = 1 }  // Default to slot 1
+
         setupBindings()
         setupIdleTimerDisabled()
+        applyActiveLanguage()
+    }
+
+    // MARK: - Language Management
+
+    /// Switch to language slot 1
+    func selectLanguage1() {
+        activeLanguageSlot = 1
+    }
+
+    /// Switch to language slot 2
+    func selectLanguage2() {
+        activeLanguageSlot = 2
+    }
+
+    /// Apply the currently active language to speech service
+    private func applyActiveLanguage() {
+        let languageId = activeLanguageSlot == 1 ? language1 : language2
+        speechService.setLanguage(identifier: languageId)
+        print("Language: Switched to slot \(activeLanguageSlot) (\(languageId))")
     }
 
     private func setupBindings() {

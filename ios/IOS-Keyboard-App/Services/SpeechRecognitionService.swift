@@ -7,18 +7,62 @@ class SpeechRecognitionService: ObservableObject {
     @Published var isRecording = false
     @Published var currentTranscript = ""
     @Published var errorMessage: String?
+    @Published var currentLocale: Locale
 
     // MARK: - Private Properties
-    private let speechRecognizer: SFSpeechRecognizer?
+    private var speechRecognizer: SFSpeechRecognizer?
     private var recognitionRequest: SFSpeechAudioBufferRecognitionRequest?
     private var recognitionTask: SFSpeechRecognitionTask?
     private let audioEngine = AVAudioEngine()
 
+    // MARK: - Static Properties
+
+    /// Common speech recognition locales
+    static let commonLocales: [(id: String, name: String)] = [
+        ("de-CH", "Deutsch (Schweiz)"),
+        ("de-DE", "Deutsch (Deutschland)"),
+        ("en-US", "English (US)"),
+        ("en-GB", "English (UK)"),
+        ("fr-FR", "Francais (France)"),
+        ("fr-CH", "Francais (Suisse)"),
+        ("it-IT", "Italiano"),
+        ("es-ES", "Espanol"),
+        ("pt-BR", "Portugues (Brasil)"),
+        ("nl-NL", "Nederlands"),
+        ("ja-JP", "Japanese"),
+        ("zh-CN", "Chinese (Simplified)"),
+    ]
+
+    /// Get all supported locales from the system
+    static var supportedLocales: [Locale] {
+        Array(SFSpeechRecognizer.supportedLocales())
+    }
+
     // MARK: - Init
 
-    init() {
-        // Initialize with device locale
-        speechRecognizer = SFSpeechRecognizer(locale: Locale.current)
+    init(locale: Locale = Locale.current) {
+        self.currentLocale = locale
+        self.speechRecognizer = SFSpeechRecognizer(locale: locale)
+    }
+
+    // MARK: - Language Selection
+
+    /// Set the recognition language
+    func setLanguage(_ locale: Locale) {
+        // Stop any ongoing recognition
+        if isRecording {
+            stopRecognition()
+        }
+
+        currentLocale = locale
+        speechRecognizer = SFSpeechRecognizer(locale: locale)
+        print("SpeechRecognition: Language set to \(locale.identifier)")
+    }
+
+    /// Set language by identifier string (e.g., "de-CH")
+    func setLanguage(identifier: String) {
+        let locale = Locale(identifier: identifier)
+        setLanguage(locale)
     }
 
     // MARK: - Permissions
@@ -56,7 +100,7 @@ class SpeechRecognitionService: ObservableObject {
 
         // Check speech recognizer availability
         guard let speechRecognizer = speechRecognizer, speechRecognizer.isAvailable else {
-            errorMessage = "Speech recognition not available"
+            errorMessage = "Speech recognition not available for \(currentLocale.identifier)"
             return
         }
 
