@@ -115,6 +115,63 @@ This document defines the functional behavior of an iOS application that perform
 
 ---
 
+### 6. Language Selection Module
+**Responsibilities**
+- Manage two configurable language slots for speech recognition.
+- Persist language selections across app sessions using UserDefaults.
+- Allow quick switching between two pre-selected languages.
+- Provide UI for changing the language in each slot.
+
+**Data Model**
+- `language1: String` - Language identifier for slot 1 (default: "de-CH")
+- `language2: String` - Language identifier for slot 2 (default: "en-US")
+- `activeLanguageSlot: Int` - Currently active slot (1 or 2)
+
+**Supported Languages**
+| Identifier | Name |
+|------------|------|
+| de-CH | Deutsch (Schweiz) |
+| de-DE | Deutsch (Deutschland) |
+| en-US | English (US) |
+| en-GB | English (UK) |
+| fr-FR | Français (France) |
+| fr-CH | Français (Suisse) |
+| it-IT | Italiano |
+| es-ES | Español |
+| pt-BR | Português (Brasil) |
+| nl-NL | Nederlands |
+| ja-JP | Japanese |
+| zh-CN | Chinese (Simplified) |
+
+**Functions**
+1. `selectLanguage1()`
+   - Sets `activeLanguageSlot = 1`.
+   - Applies language1 to speech recognizer.
+
+2. `selectLanguage2()`
+   - Sets `activeLanguageSlot = 2`.
+   - Applies language2 to speech recognizer.
+
+3. `setLanguage(identifier: String)`
+   - Updates the speech recognizer locale.
+   - Stops any active recognition before switching.
+
+**Persistence**
+- All language settings stored in UserDefaults:
+  - `speechLanguage1` - Language identifier for slot 1
+  - `speechLanguage2` - Language identifier for slot 2
+  - `activeLanguageSlot` - Active slot number (1 or 2)
+- Settings restored on app launch.
+
+**UI Behavior**
+- Two language buttons displayed at top of voice interface.
+- Each button shows: flag emoji, short language code, active indicator.
+- **Tap**: Switch to that language slot.
+- **Long-press**: Open picker sheet to change the language in that slot.
+- Picker shows all supported languages with checkmark on current selection.
+
+---
+
 ## Power Management
 
 ### State Definitions
