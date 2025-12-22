@@ -8,7 +8,7 @@ ESP32-S3 USB HID keyboard emulator with iOS voice-to-keyboard app.
 
 | Folder | Description |
 |--------|-------------|
-| [esp32/](esp32/) | ESP32-S3 firmware - USB HID keyboard + BLE receiver |
+| [esp32/projects/IOS-Keyboard/](esp32/projects/IOS-Keyboard/) | ESP32-S3 firmware - USB HID keyboard + BLE receiver |
 | [ios/](ios/) | iOS app - Voice recognition + BLE transmitter |
 | [Documentation/](Documentation/) | Functional specifications |
 
@@ -31,8 +31,9 @@ ESP32-S3 USB HID keyboard emulator with iOS voice-to-keyboard app.
 
 ### ESP32 Firmware
 ```bash
-cd esp32
+cd esp32/projects/IOS-Keyboard
 source ~/esp/esp-idf/export.sh
+idf.py set-target esp32s3  # First time only
 idf.py build
 idf.py flash
 ```
@@ -61,9 +62,9 @@ Say these words to trigger special actions:
 
 ## Current Status
 
-- **v2.9.0** - Full system working
-- ESP32: WiFi + USB HID + BLE + Keyboard Layouts + Ctrl+key support
-- iOS app: Auto-scan, auto-connect, auto-reconnect, screen stays on, magic words
+- **v2.10.0** - Full system working
+- ESP32: WiFi + USB HID + BLE + Keyboard Layouts (7 languages) + Ctrl+key support
+- iOS app: Auto-scan, auto-connect, auto-reconnect, language selection, screen stays on
 
 ## Features
 
