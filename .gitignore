@@ -1,8 +1,9 @@
 # ESP32 Build
-esp32/build/
-esp32/sdkconfig
-esp32/sdkconfig.old
-esp32/managed_components/
+esp32/**/build/
+esp32/**/sdkconfig
+esp32/**/sdkconfig.old
+esp32/**/managed_components/
+esp32/**/dependencies.lock
 
 # iOS Build
 ios/*.xcodeproj/project.xcworkspace/
