@@ -1,7 +1,7 @@
 # IOS-Keyboard Functional Specification Document
 
-**Version:** 2.10.0
-**Date:** 2025-12-22
+**Version:** 2.11.0
+**Date:** 2025-12-23
 **Status:** Phase 5 Complete - Project Restructured
 
 ---
@@ -159,6 +159,8 @@ This document specifies the functional requirements for an ESP32-C3 based USB ke
 | FR-IOS-12 | App shall show device list only when multiple devices found or no devices after scan | Must |
 | FR-IOS-13 | App shall ignore pending transcript updates when stopping to prevent retransmission | Must |
 | FR-IOS-14 | App shall have a microphone app icon | Should |
+| FR-IOS-15 | App shall reset speech recognition after 10 seconds of silence to start fresh text | Must |
+| FR-IOS-16 | App shall log text diff operations for debugging (old text, new text, backspaces, insert) | Should |
 
 ---
 
@@ -361,3 +363,5 @@ IOS-Keyboard/
 | 1.7 | 2025-12-21 | - | Phase 5 complete: iOS app with Xcode project; auto-scan/connect/reconnect; screen stays on; magic word "Abrahadabra" sends Ctrl+J; clear display on stop; added Ctrl+key command (0x04) |
 | 1.8 | 2025-12-21 | - | iOS app polish: Simple "Connecting..." view (no device list for single device); fix retransmission bug on stop; microphone app icon |
 | 1.9 | 2025-12-21 | - | Debug trace feature: Added BLE→HID trace view in debug web interface showing received commands and sent keycodes in real-time |
+| 2.10.0 | 2025-12-22 | - | Project restructured to esp32/ and ios/ folders; updated documentation |
+| 2.11.0 | 2025-12-23 | - | Silence detection: Reset speech recognition after 10s of no transcript updates to prevent text repetition; added diff logging for debugging |
