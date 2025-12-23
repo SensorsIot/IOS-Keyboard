@@ -38,6 +38,10 @@ class MainViewModel: ObservableObject {
     private var lastDisplayUpdate = Date.distantPast
     private let displayUpdateInterval: TimeInterval = 0.3  // Update display max 3x per second
 
+    // Silence detection - reset text state after 10 seconds of no recognition
+    private var silenceTimer: Timer?
+    private let silenceTimeout: TimeInterval = 10.0
+
     // Language Selection
     @Published var language1: String {
         didSet { UserDefaults.standard.set(language1, forKey: UserDefaultsKeys.language1) }
@@ -195,6 +199,9 @@ class MainViewModel: ObservableObject {
         // Set flag to ignore any pending transcript updates
         isStopping = true
 
+        // Stop silence timer
+        stopSilenceTimer()
+
         speechService.stopRecognition()
 
         // Clear display and reset for next recording (doesn't delete text on target)
@@ -213,6 +220,9 @@ class MainViewModel: ObservableObject {
     private func handleTranscriptUpdate(_ newText: String) {
         // Ignore updates when stopping or empty
         guard !isStopping, !newText.isEmpty else { return }
+
+        // Reset silence timer - we received new text
+        resetSilenceTimer()
 
         // Compute diff and send to BLE immediately
         let diff = diffService.computeDiff(newText: newText)
@@ -233,6 +243,49 @@ class MainViewModel: ObservableObject {
             recognizedText = newText
             transmittedText = newText
             lastDisplayUpdate = now
+        }
+    }
+
+    // MARK: - Silence Detection
+
+    private func resetSilenceTimer() {
+        silenceTimer?.invalidate()
+        silenceTimer = Timer.scheduledTimer(withTimeInterval: silenceTimeout, repeats: false) { [weak self] _ in
+            Task { @MainActor in
+                self?.handleSilenceTimeout()
+            }
+        }
+    }
+
+    private func stopSilenceTimer() {
+        silenceTimer?.invalidate()
+        silenceTimer = nil
+    }
+
+    private func handleSilenceTimeout() {
+        guard isRecording, !isStopping else { return }
+
+        print("Silence detected for \(silenceTimeout)s - restarting speech recognition for fresh start")
+
+        // Set flag to ignore any lingering updates during restart
+        isStopping = true
+
+        // Stop speech recognition
+        speechService.stopRecognition()
+
+        // Reset diff state so next speech starts fresh (no backspaces)
+        diffService.reset()
+
+        // Clear display to indicate fresh start
+        recognizedText = ""
+        transmittedText = ""
+
+        // Restart after a brief delay to ensure clean stop
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+            self.isStopping = false
+            if self.isConnected {
+                self.speechService.startRecognition()
+            }
         }
     }
 }

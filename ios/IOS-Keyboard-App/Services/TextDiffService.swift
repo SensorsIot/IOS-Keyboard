@@ -30,6 +30,14 @@ class TextDiffService {
         let insertStartIndex = newText.index(newText.startIndex, offsetBy: commonPrefixLength)
         let insert = String(newText[insertStartIndex...])
 
+        // Log diff details
+        let oldText = lastSentText
+        let commonPrefix = String(newText.prefix(commonPrefixLength))
+        print("Diff: old=\"\(oldText)\" (\(oldText.count) chars)")
+        print("      new=\"\(newText)\" (\(newText.count) chars)")
+        print("      commonPrefix=\"\(commonPrefix)\" (\(commonPrefixLength) chars)")
+        print("      → backspaces=\(backspaces), insert=\"\(insert)\"")
+
         // Update last sent text
         lastSentText = newText
 
