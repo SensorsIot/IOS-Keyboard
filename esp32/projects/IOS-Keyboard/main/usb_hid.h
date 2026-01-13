@@ -1,6 +1,7 @@
 #ifndef USB_HID_H
 #define USB_HID_H
 
+#include <stdbool.h>
 #include "esp_err.h"
 
 /**
